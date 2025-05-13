@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Document{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1><i class="fas fa-edit me-2"></i>Edit Document</h1>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('document_view', document_id=document.id) }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Document
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Document Information</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('document_edit', document_id=document.id) }}" method="post" id="edit-form">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Document Name</label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               value="{{ document.name }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="content" class="form-label">Document Content</label>
+                        <textarea class="form-control" id="content" name="content" rows="15" required>{{ document.content }}</textarea>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle me-1"></i>Editing the content will regenerate all chunks and embeddings.
+                        </div>
+                    </div>
+                    
+                    <h4 class="mb-3 mt-4 border-bottom pb-2">Document Metadata</h4>
+                    <p class="text-muted mb-3">
+                        Add key-value pairs to help organize and filter your documents.
+                    </p>
+                    
+                    <div id="metadata-container">
+                        {% if metadata %}
+                            {% for meta in metadata %}
+                                <div class="row metadata-row mb-3">
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control" name="meta_key_{{ loop.index0 }}" 
+                                               value="{{ meta.key }}" placeholder="Key (e.g., author)">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control" name="meta_value_{{ loop.index0 }}" 
+                                               value="{{ meta.value }}" placeholder="Value (e.g., John Smith)">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-danger w-100 remove-metadata">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="row metadata-row mb-3">
+                                <div class="col-md-5">
+                                    <input type="text" class="form-control" name="meta_key_0" placeholder="Key (e.g., author)">
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="text" class="form-control" name="meta_value_0" placeholder="Value (e.g., John Smith)">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-danger w-100 remove-metadata">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-4">
+                        <button type="button" id="add-metadata" class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-plus me-1"></i>Add More Metadata
+                        </button>
+                    </div>
+                    
+                    <div class="text-end">
+                        <a href="{{ url_for('document_view', document_id=document.id) }}" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-times me-1"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let metadataCount = {{ metadata|length if metadata else 1 }};
+    
+    // Add metadata functionality
+    document.getElementById('add-metadata').addEventListener('click', function() {
+        const container = document.getElementById('metadata-container');
+        const row = document.createElement('div');
+        row.className = 'row metadata-row mb-3';
+        row.innerHTML = `
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="meta_key_${metadataCount}" placeholder="Key (e.g., category)">
+            </div>
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="meta_value_${metadataCount}" placeholder="Value (e.g., finance)">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-danger w-100 remove-metadata">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        container.appendChild(row);
+        metadataCount++;
+    });
+    
+    // Remove metadata functionality
+    document.getElementById('metadata-container').addEventListener('click', function(e) {
+        if (e.target.closest('.remove-metadata')) {
+            const row = e.target.closest('.metadata-row');
+            row.remove();
+        }
+    });
+    
+    // Form submission validation
+    document.getElementById('edit-form').addEventListener('submit', function(e) {
+        const nameField = document.getElementById('name');
+        const contentField = document.getElementById('content');
+        
+        if (!nameField.value.trim()) {
+            e.preventDefault();
+            nameField.classList.add('is-invalid');
+            return false;
+        }
+        
+        if (!contentField.value.trim()) {
+            e.preventDefault();
+            contentField.classList.add('is-invalid');
+            return false;
+        }
+        
+        // Validate metadata
+        const metadataKeys = document.querySelectorAll('input[name^="meta_key_"]');
+        const metadataValues = document.querySelectorAll('input[name^="meta_value_"]');
+        
+        for (let i = 0; i < metadataKeys.length; i++) {
+            const key = metadataKeys[i].value.trim();
+            const value = metadataValues[i].value.trim();
+            
+            if (key && !value) {
+                e.preventDefault();
+                metadataValues[i].classList.add('is-invalid');
+                return false;
+            }
+            
+            if (!key && value) {
+                e.preventDefault();
+                metadataKeys[i].classList.add('is-invalid');
+                return false;
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

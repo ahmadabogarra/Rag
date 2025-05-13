@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block title %}Model Management{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <h1><i class="fas fa-cogs me-2"></i>Model Management</h1>
+        <p class="text-muted">Manage and configure embedding models for semantic search</p>
+    </div>
+    <div class="col-md-6 text-md-end">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModelModal">
+            <i class="fas fa-plus me-1"></i>Add New Model
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Available Models</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="models-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Path/Identifier</th>
+                            <th>Dimensions</th>
+                            <th>Status</th>
+                            <th>Default</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for model in models %}
+                            <tr data-model-id="{{ model.id }}">
+                                <td>{{ model.name }}</td>
+                                <td>{{ model.model_type }}</td>
+                                <td>{{ model.model_path }}</td>
+                                <td>{{ model.dimension }}</td>
+                                <td>
+                                    {% if model.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if model.is_default %}
+                                        <span class="badge bg-primary">Default</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-sm btn-outline-warning edit-model" 
+                                                data-model-id="{{ model.id }}" data-bs-toggle="modal" data-bs-target="#editModelModal">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        {% if not model.is_default %}
+                                            <button type="button" class="btn btn-sm btn-outline-primary set-default-model" 
+                                                    data-model-id="{{ model.id }}" {% if not model.is_active %}disabled{% endif %}>
+                                                <i class="fas fa-star"></i>
+                                            </button>
+                                        {% endif %}
+                                        <button type="button" class="btn btn-sm btn-outline-{% if model.is_active %}secondary{% else %}success{% endif %} toggle-model-status" 
+                                                data-model-id="{{ model.id }}" data-current-status="{{ model.is_active|int }}">
+                                            <i class="fas {% if model.is_active %}fa-pause{% else %}fa-play{% endif %}"></i>
+                                        </button>
+                                        {% if not model.is_default %}
+                                            <button type="button" class="btn btn-sm btn-outline-danger delete-model" 
+                                                    data-model-id="{{ model.id }}" data-model-name="{{ model.name }}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if not models %}
+                <div class="card-body">
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle me-2"></i>No embedding models defined yet. Add a model to get started!
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Model Modal -->
+<div class="modal fade" id="addModelModal" tabindex="-1" aria-labelledby="addModelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addModelModalLabel">Add New Embedding Model</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-model-form">
+                    <div class="mb-3">
+                        <label for="model-name" class="form-label">Model Name</label>
+                        <input type="text" class="form-control" id="model-name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="model-type" class="form-label">Model Type</label>
+                        <select class="form-select" id="model-type" name="model_type" required>
+                            <option value="sentence-transformers">Sentence Transformers</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="model-path" class="form-label">Model Path/Identifier</label>
+                        <input type="text" class="form-control" id="model-path" name="model_path" required>
+                        <div class="form-text">
+                            For Sentence Transformers, enter model name like 'paraphrase-multilingual-MiniLM-L12-v2'.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="model-dimension" class="form-label">Vector Dimensions</label>
+                        <input type="number" class="form-control" id="model-dimension" name="dimension" required>
+                        <div class="form-text">
+                            Dimension of the embedding vectors (e.g., 384 for MiniLM, 768 for BERT).
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="model-active" name="is_active" checked>
+                        <label class="form-check-label" for="model-active">
+                            Active (ready for use)
+                        </label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="model-default" name="is_default">
+                        <label class="form-check-label" for="model-default">
+                            Set as Default Model
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-new-model">Save Model</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Model Modal -->
+<div class="modal fade" id="editModelModal" tabindex="-1" aria-labelledby="editModelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editModelModalLabel">Edit Embedding Model</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-model-form">
+                    <input type="hidden" id="edit-model-id">
+                    <div class="mb-3">
+                        <label for="edit-model-name" class="form-label">Model Name</label>
+                        <input type="text" class="form-control" id="edit-model-name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-model-path" class="form-label">Model Path/Identifier</label>
+                        <input type="text" class="form-control" id="edit-model-path" name="model_path" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-model-dimension" class="form-label">Vector Dimensions</label>
+                        <input type="number" class="form-control" id="edit-model-dimension" name="dimension" required>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="edit-model-active" name="is_active">
+                        <label class="form-check-label" for="edit-model-active">
+                            Active (ready for use)
+                        </label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="edit-model-default" name="is_default">
+                        <label class="form-check-label" for="edit-model-default">
+                            Set as Default Model
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="update-model">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Model Modal -->
+<div class="modal fade" id="deleteModelModal" tabindex="-1" aria-labelledby="deleteModelModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModelModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the model <strong id="delete-model-name"></strong>?</p>
+                <p class="text-danger">This will remove all associated embeddings and may affect search functionality.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-model">Delete Model</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/model_management.js') }}"></script>
+{% endblock %}

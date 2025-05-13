@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Document{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-upload me-2"></i>Upload Document</h2>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" id="upload-form">
+                    <div class="mb-4">
+                        <label for="document" class="form-label">Document File</label>
+                        <input type="file" class="form-control" id="document" name="document" required>
+                        <div class="form-text">Upload text files for processing. Only text-based files are supported.</div>
+                    </div>
+                    
+                    <h4 class="mb-3 mt-4 border-bottom pb-2">Document Metadata</h4>
+                    <p class="text-muted mb-3">
+                        Add key-value pairs to help organize and filter your documents.
+                    </p>
+                    
+                    <div id="metadata-container">
+                        <div class="row metadata-row mb-3">
+                            <div class="col-md-5">
+                                <input type="text" class="form-control" name="meta_key_0" placeholder="Key (e.g., author)">
+                            </div>
+                            <div class="col-md-5">
+                                <input type="text" class="form-control" name="meta_value_0" placeholder="Value (e.g., John Smith)">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-danger w-100 remove-metadata">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <button type="button" id="add-metadata" class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-plus me-1"></i>Add More Metadata
+                        </button>
+                    </div>
+                    
+                    <h4 class="mb-3 mt-4 border-bottom pb-2">Chunking Options</h4>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="chunk-size" class="form-label">Chunk Size (characters)</label>
+                            <input type="number" class="form-control" id="chunk-size" name="chunk_size" value="1000" min="100" max="10000">
+                            <div class="form-text">Maximum characters per chunk</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="chunk-overlap" class="form-label">Chunk Overlap (characters)</label>
+                            <input type="number" class="form-control" id="chunk-overlap" name="chunk_overlap" value="200" min="0" max="1000">
+                            <div class="form-text">Overlap between consecutive chunks</div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-end">
+                        <a href="{{ url_for('document_list') }}" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-times me-1"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload me-1"></i>Upload Document
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize chunking parameters
+    fetch('/api/chunking')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('chunk-size').value = data.chunk_size;
+            document.getElementById('chunk-overlap').value = data.chunk_overlap;
+        });
+    
+    // Add metadata functionality
+    let metadataCount = 1;
+    
+    document.getElementById('add-metadata').addEventListener('click', function() {
+        const container = document.getElementById('metadata-container');
+        const row = document.createElement('div');
+        row.className = 'row metadata-row mb-3';
+        row.innerHTML = `
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="meta_key_${metadataCount}" placeholder="Key (e.g., category)">
+            </div>
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="meta_value_${metadataCount}" placeholder="Value (e.g., finance)">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-danger w-100 remove-metadata">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        container.appendChild(row);
+        metadataCount++;
+    });
+    
+    // Remove metadata functionality
+    document.getElementById('metadata-container').addEventListener('click', function(e) {
+        if (e.target.closest('.remove-metadata')) {
+            const row = e.target.closest('.metadata-row');
+            row.remove();
+        }
+    });
+    
+    // Form submission - update chunking parameters
+    document.getElementById('upload-form').addEventListener('submit', function(e) {
+        const chunkSize = document.getElementById('chunk-size').value;
+        const chunkOverlap = document.getElementById('chunk-overlap').value;
+        
+        // Update chunking parameters via API
+        fetch('/api/chunking', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                chunk_size: parseInt(chunkSize),
+                chunk_overlap: parseInt(chunkOverlap)
+            })
+        }).catch(error => console.error('Error updating chunking parameters:', error));
+    });
+});
+</script>
+{% endblock %}

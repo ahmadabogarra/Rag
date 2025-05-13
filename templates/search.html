@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+
+{% block title %}Semantic Search{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="fas fa-search me-2"></i>Semantic Search</h1>
+        <p class="text-muted">Search your documents using meaning-based semantic search with vector embeddings</p>
+    </div>
+</div>
+
+<div class="row mb-5">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Search Options</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('search_page') }}" method="get" id="search-form">
+                    <div class="mb-3">
+                        <label for="query" class="form-label">Search Query</label>
+                        <input type="text" class="form-control form-control-lg" id="query" name="query" 
+                               value="{{ query }}" placeholder="Enter your search query..." required>
+                    </div>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label for="model-select" class="form-label">Embedding Model</label>
+                            <select class="form-select" id="model-select" name="model_id">
+                                <option value="">Default ({{ default_model.name if default_model else 'None' }})</option>
+                                {% for model in active_models %}
+                                    <option value="{{ model.id }}" {% if selected_model_id == model.id %}selected{% endif %}>
+                                        {{ model.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Select the embedding model to use for search</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="top-k" class="form-label">Results Count</label>
+                            <input type="number" class="form-control" id="top-k" name="top_k" 
+                                   value="{{ top_k }}" min="1" max="20">
+                            <div class="form-text">Number of results to return</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="min-score" class="form-label">Minimum Score</label>
+                            <input type="number" class="form-control" id="min-score" name="min_score" 
+                                   value="{{ min_score }}" min="0" max="1" step="0.1">
+                            <div class="form-text">Minimum similarity score (0-1)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4" id="metadata-filters">
+                        <label class="form-label">Metadata Filters</label>
+                        <div id="filters-container">
+                            <div class="row filter-row mb-2">
+                                <div class="col-md-5">
+                                    <input type="text" class="form-control" name="filter_key_0" placeholder="Key (e.g., author)">
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="text" class="form-control" name="filter_value_0" placeholder="Value (e.g., John Smith)">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-danger w-100 remove-filter">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" id="add-filter" class="btn btn-sm btn-outline-info mt-2">
+                            <i class="fas fa-plus me-1"></i>Add Filter
+                        </button>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-1"></i>Search
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if query %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>Search Results</h2>
+                <div class="text-muted">
+                    <small>Query: "{{ query }}" | {{ results|length }} results</small>
+                </div>
+            </div>
+            
+            {% if results %}
+                <div class="card">
+                    <div class="list-group list-group-flush">
+                        {% for result in results %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between mb-2">
+                                    <h5 class="mb-1">
+                                        <a href="{{ url_for('document_view', document_id=result.document.id) }}" class="text-decoration-none">
+                                            <i class="fas fa-file-alt me-2"></i>{{ result.document.name }}
+                                        </a>
+                                    </h5>
+                                    <span class="badge bg-info">Score: {{ "%.2f"|format(result.score) }}</span>
+                                </div>
+                                
+                                <div class="mb-2">
+                                    <h6 class="mb-1">Matching Content:</h6>
+                                    <div class="p-2 bg-dark text-light rounded">
+                                        {{ result.chunk.content }}
+                                    </div>
+                                </div>
+                                
+                                {% if result.document.metadata %}
+                                    <div class="mb-2">
+                                        <small class="text-muted">Metadata: </small>
+                                        {% for key, value in result.document.metadata.items() %}
+                                            <span class="badge bg-secondary me-1">{{ key }}: {{ value }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                
+                                <small class="text-muted">
+                                    Last updated: {{ result.document.updated_at }}
+                                </small>
+                                
+                                <div class="mt-2">
+                                    <a href="{{ url_for('document_view', document_id=result.document.id) }}" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-eye me-1"></i>View Document
+                                    </a>
+                                    <a href="{{ url_for('search_page') }}?query={{ result.document.name }}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-search me-1"></i>Find Similar
+                                    </a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>No results found for your query. Try changing your search terms or adjusting the minimum score.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add filter functionality
+    let filterCount = 1;
+    
+    document.getElementById('add-filter').addEventListener('click', function() {
+        const container = document.getElementById('filters-container');
+        const row = document.createElement('div');
+        row.className = 'row filter-row mb-2';
+        row.innerHTML = `
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="filter_key_${filterCount}" placeholder="Key (e.g., category)">
+            </div>
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="filter_value_${filterCount}" placeholder="Value (e.g., finance)">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-danger w-100 remove-filter">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        container.appendChild(row);
+        filterCount++;
+    });
+    
+    // Remove filter functionality
+    document.getElementById('filters-container').addEventListener('click', function(e) {
+        if (e.target.closest('.remove-filter')) {
+            const row = e.target.closest('.filter-row');
+            row.remove();
+        }
+    });
+    
+    // Apply existing filters from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    let hasFilters = false;
+    
+    for (const [key, value] of urlParams.entries()) {
+        if (key.startsWith('filter_key_')) {
+            hasFilters = true;
+            const index = key.split('_')[2];
+            const filterKey = urlParams.get(`filter_key_${index}`);
+            const filterValue = urlParams.get(`filter_value_${index}`);
+            
+            if (index === '0') {
+                // Update the first filter row
+                const firstKeyInput = document.querySelector('input[name="filter_key_0"]');
+                const firstValueInput = document.querySelector('input[name="filter_value_0"]');
+                
+                if (firstKeyInput && firstValueInput) {
+                    firstKeyInput.value = filterKey;
+                    firstValueInput.value = filterValue;
+                }
+            } else {
+                // Add a new filter row
+                const container = document.getElementById('filters-container');
+                const row = document.createElement('div');
+                row.className = 'row filter-row mb-2';
+                row.innerHTML = `
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" name="filter_key_${index}" value="${filterKey}" placeholder="Key">
+                    </div>
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" name="filter_value_${index}" value="${filterValue}" placeholder="Value">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-danger w-100 remove-filter">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(row);
+                filterCount = Math.max(filterCount, parseInt(index) + 1);
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

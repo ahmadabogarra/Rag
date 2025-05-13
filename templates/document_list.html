@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+
+{% block title %}Document List{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <h1><i class="fas fa-folder-open me-2"></i>Document List</h1>
+    </div>
+    <div class="col-md-6 text-md-end">
+        <a href="{{ url_for('upload') }}" class="btn btn-primary">
+            <i class="fas fa-upload me-1"></i>Upload New Document
+        </a>
+    </div>
+</div>
+
+{% if documents %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="mb-0">Your Documents</h5>
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" id="document-search" class="form-control" placeholder="Filter documents...">
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Metadata</th>
+                                <th>Last Updated</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc_item in documents %}
+                                <tr class="document-row">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-file-alt text-muted me-2"></i>
+                                            <div>
+                                                <a href="{{ url_for('document_view', document_id=doc_item.document.id) }}" class="text-decoration-none">
+                                                    {{ doc_item.document.name }}
+                                                </a>
+                                                <div class="small text-muted">
+                                                    {{ (doc_item.document.content[:100] + '...') if doc_item.document.content|length > 100 else doc_item.document.content }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if doc_item.metadata %}
+                                            {% for meta in doc_item.metadata %}
+                                                <span class="badge bg-secondary me-1">
+                                                    {{ meta.key }}: {{ meta.value }}
+                                                </span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">No metadata</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ doc_item.document.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{{ url_for('document_view', document_id=doc_item.document.id) }}" 
+                                               class="btn btn-sm btn-outline-info" title="View Document">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{{ url_for('document_edit', document_id=doc_item.document.id) }}" 
+                                               class="btn btn-sm btn-outline-warning" title="Edit Document">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger delete-document" 
+                                                    data-document-id="{{ doc_item.document.id }}" 
+                                                    data-document-name="{{ doc_item.document.name }}"
+                                                    title="Delete Document">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>No documents found. <a href="{{ url_for('upload') }}">Upload your first document</a>!
+    </div>
+{% endif %}
+
+<!-- Delete Document Modal -->
+<div class="modal fade" id="deleteDocumentModal" tabindex="-1" aria-labelledby="deleteDocumentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteDocumentModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the document <strong id="delete-document-name"></strong>?</p>
+                <p class="text-danger">This action cannot be undone!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="delete-document-form" method="post">
+                    <button type="submit" class="btn btn-danger">Delete Document</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Document filtering
+    const searchInput = document.getElementById('document-search');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function() {
+            const searchText = this.value.toLowerCase();
+            const rows = document.querySelectorAll('.document-row');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(searchText)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    // Delete document modal handling
+    const deleteButtons = document.querySelectorAll('.delete-document');
+    const deleteForm = document.getElementById('delete-document-form');
+    const deleteDocumentName = document.getElementById('delete-document-name');
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteDocumentModal'));
+    
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const documentId = this.dataset.documentId;
+            const documentName = this.dataset.documentName;
+            
+            deleteForm.action = `/documents/${documentId}/delete`;
+            deleteDocumentName.textContent = documentName;
+            
+            deleteModal.show();
+        });
+    });
+});
+</script>
+{% endblock %}

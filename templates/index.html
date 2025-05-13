@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block title %}Document Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto text-center mb-5">
+        <h1 class="display-5 fw-bold mb-4">Document Management with Semantic Search</h1>
+        <p class="lead mb-4">Upload, manage, and search your documents using advanced vector embeddings</p>
+        <div class="d-grid gap-2 d-sm-flex justify-content-center">
+            <a href="{{ url_for('upload') }}" class="btn btn-primary btn-lg px-4 gap-3">
+                <i class="fas fa-upload me-2"></i>Upload Document
+            </a>
+            <a href="{{ url_for('search_page') }}" class="btn btn-outline-secondary btn-lg px-4">
+                <i class="fas fa-search me-2"></i>Search Documents
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-5">
+    <div class="col-md-10 mx-auto">
+        <div class="p-5 bg-dark rounded-3 shadow">
+            <h2 class="text-center mb-4">Semantic Search</h2>
+            <form action="{{ url_for('search_page') }}" method="get">
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control form-control-lg" name="query" 
+                           placeholder="Enter your search query..." aria-label="Search query">
+                    <button class="btn btn-info" type="submit">
+                        <i class="fas fa-search me-2"></i>Search
+                    </button>
+                </div>
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-4">
+                        <label for="model-select" class="form-label">Embedding Model:</label>
+                        <select class="form-select" id="model-select" name="model_id">
+                            <option value="">Default ({{ default_model.name if default_model else 'None' }})</option>
+                            {% for model in active_models %}
+                                <option value="{{ model.id }}">{{ model.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="top-k" class="form-label">Results Count:</label>
+                        <input type="number" class="form-control" id="top-k" name="top_k" value="5" min="1" max="20">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="min-score" class="form-label">Minimum Score:</label>
+                        <input type="number" class="form-control" id="min-score" name="min_score" value="0.5" min="0" max="1" step="0.1">
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="border-bottom pb-2">Recent Documents</h2>
+    </div>
+</div>
+
+<div class="row">
+    {% if recent_documents %}
+        {% for document in recent_documents %}
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-file-alt me-2"></i>{{ document.name }}
+                        </h5>
+                        <h6 class="card-subtitle mb-2 text-muted">
+                            <small>Last updated: {{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </h6>
+                        <p class="card-text">
+                            {{ (document.content[:150] + '...') if document.content|length > 150 else document.content }}
+                        </p>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="{{ url_for('document_view', document_id=document.id) }}" class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-eye me-1"></i>View
+                        </a>
+                        <a href="{{ url_for('search_page') }}?query={{ document.name }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-search me-1"></i>Find Similar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>No documents yet. <a href="{{ url_for('upload') }}">Upload your first document</a>!
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <div class="py-3">
+                    <i class="fas fa-file-upload fa-4x text-primary mb-3"></i>
+                    <h5 class="card-title">Document Management</h5>
+                    <p class="card-text">Upload, edit, and organize your documents with flexible metadata support.</p>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{{ url_for('upload') }}" class="btn btn-sm btn-outline-primary">Upload Now</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <div class="py-3">
+                    <i class="fas fa-search fa-4x text-info mb-3"></i>
+                    <h5 class="card-title">Semantic Search</h5>
+                    <p class="card-text">Find documents using meaning-based search with vector embeddings.</p>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{{ url_for('search_page') }}" class="btn btn-sm btn-outline-info">Search Now</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <div class="py-3">
+                    <i class="fas fa-cogs fa-4x text-warning mb-3"></i>
+                    <h5 class="card-title">Model Management</h5>
+                    <p class="card-text">Configure and manage multiple embedding models for your search needs.</p>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{{ url_for('model_management') }}" class="btn btn-sm btn-outline-warning">Manage Models</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,432 @@
+import os
+import json
+import logging
+from flask import render_template, request, jsonify, redirect, url_for, flash, send_file
+from werkzeug.utils import secure_filename
+from app import app, db
+from models import Document, EmbeddingModel, Metadata, Chunk
+from document_processor import DocumentProcessor
+from embedding_models import EmbeddingModelManager
+from vector_store import VectorStore
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+# Initialize document processor outside app context as it doesn't need db access initially
+document_processor = DocumentProcessor()
+
+# Initialize components that require app context
+embedding_manager = None
+vector_store = None
+
+# We'll initialize these variables inside application context right before they're needed
+def get_embedding_manager():
+    global embedding_manager
+    if embedding_manager is None:
+        embedding_manager = EmbeddingModelManager()
+    return embedding_manager
+
+def get_vector_store():
+    global vector_store
+    if vector_store is None:
+        vector_store = VectorStore(get_embedding_manager())
+    return vector_store
+
+# Create a function to ensure a default model exists
+def ensure_default_model():
+    with app.app_context():
+        if not EmbeddingModel.query.first():
+            manager = get_embedding_manager()
+            manager.add_model(
+                name="Simple Vector Embedding",
+                model_type="simple-embedder",
+                model_path="default",
+                dimension=384,
+                is_active=True,
+                is_default=True
+            )
+
+# Routes
+@app.route('/')
+def index():
+    """Home page with recent documents and search box"""
+    # Ensure we have a default model
+    ensure_default_model()
+    
+    em = get_embedding_manager()
+    
+    recent_documents = Document.query.order_by(Document.updated_at.desc()).limit(5).all()
+    active_models = em.get_active_models()
+    default_model = em.get_default_model()
+    
+    return render_template(
+        'index.html', 
+        recent_documents=recent_documents,
+        active_models=active_models,
+        default_model=default_model
+    )
+
+@app.route('/upload', methods=['GET', 'POST'])
+def upload():
+    """Document upload page and handling"""
+    if request.method == 'POST':
+        # Check if file was uploaded
+        if 'document' not in request.files:
+            flash('No file selected', 'error')
+            return redirect(request.url)
+        
+        file = request.files['document']
+        if file.filename == '':
+            flash('No file selected', 'error')
+            return redirect(request.url)
+        
+        # Read file content
+        content = file.read().decode('utf-8')
+        name = secure_filename(file.filename or 'unnamed_document.txt')
+        mime_type = file.content_type or 'text/plain'
+        
+        # Extract metadata from form
+        metadata = {}
+        for key in request.form:
+            if key.startswith('meta_key_'):
+                idx = key.split('_')[-1]
+                meta_key = request.form[f'meta_key_{idx}']
+                meta_value = request.form[f'meta_value_{idx}']
+                if meta_key and meta_value:
+                    metadata[meta_key] = meta_value
+        
+        # Process the document
+        try:
+            document = document_processor.process_document(name, content, mime_type, metadata)
+            
+            # Generate embeddings for all active models
+            em = get_embedding_manager()
+            active_models = em.get_active_models()
+            vs = get_vector_store()
+            for model in active_models:
+                vs.sync_document_embeddings(document.id, model.id)
+            
+            flash(f'Document "{name}" uploaded successfully', 'success')
+            return redirect(url_for('document_list'))
+        except Exception as e:
+            logger.error(f"Error processing document: {str(e)}")
+            flash(f'Error processing document: {str(e)}', 'error')
+            return redirect(request.url)
+    
+    # GET request - show upload form
+    return render_template('upload.html')
+
+@app.route('/documents')
+def document_list():
+    """List all documents"""
+    documents = Document.query.order_by(Document.updated_at.desc()).all()
+    
+    # Get metadata for each document
+    documents_with_metadata = []
+    for doc in documents:
+        doc_metadata = Metadata.query.filter_by(document_id=doc.id).all()
+        documents_with_metadata.append({
+            'document': doc,
+            'metadata': doc_metadata
+        })
+    
+    return render_template('document_list.html', documents=documents_with_metadata)
+
+@app.route('/documents/<document_id>')
+def document_view(document_id):
+    """View a document and its chunks"""
+    document = Document.query.get_or_404(document_id)
+    metadata = Metadata.query.filter_by(document_id=document_id).all()
+    chunks = Chunk.query.filter_by(document_id=document_id).order_by(Chunk.chunk_index).all()
+    
+    return render_template(
+        'document_view.html',
+        document=document,
+        metadata=metadata,
+        chunks=chunks
+    )
+
+@app.route('/documents/<document_id>/edit', methods=['GET', 'POST'])
+def document_edit(document_id):
+    """Edit a document and its metadata"""
+    document = Document.query.get_or_404(document_id)
+    
+    if request.method == 'POST':
+        # Update document
+        name = request.form.get('name')
+        content = request.form.get('content')
+        
+        # Extract metadata from form
+        metadata = {}
+        for key in request.form:
+            if key.startswith('meta_key_'):
+                idx = key.split('_')[-1]
+                meta_key = request.form[f'meta_key_{idx}']
+                meta_value = request.form[f'meta_value_{idx}']
+                if meta_key and meta_value:
+                    metadata[meta_key] = meta_value
+        
+        # Update the document
+        try:
+            document_processor.update_document(document_id, name, content, metadata)
+            
+            # Re-generate embeddings
+            vs = get_vector_store()
+            vs.sync_document_embeddings(document_id)
+            
+            flash('Document updated successfully', 'success')
+            return redirect(url_for('document_view', document_id=document_id))
+        except Exception as e:
+            logger.error(f"Error updating document: {str(e)}")
+            flash(f'Error updating document: {str(e)}', 'error')
+    
+    # GET request - show edit form
+    metadata = Metadata.query.filter_by(document_id=document_id).all()
+    return render_template('document_edit.html', document=document, metadata=metadata)
+
+@app.route('/documents/<document_id>/delete', methods=['POST'])
+def document_delete(document_id):
+    """Delete a document"""
+    try:
+        document_processor.delete_document(document_id)
+        flash('Document deleted successfully', 'success')
+        return redirect(url_for('document_list'))
+    except Exception as e:
+        logger.error(f"Error deleting document: {str(e)}")
+        flash(f'Error deleting document: {str(e)}', 'error')
+        return redirect(url_for('document_view', document_id=document_id))
+
+@app.route('/search')
+def search_page():
+    """Search page with form and results"""
+    query = request.args.get('query', '')
+    model_id = request.args.get('model_id', '')
+    top_k = int(request.args.get('top_k', 5))
+    min_score = float(request.args.get('min_score', 0.5))
+    
+    results = []
+    em = get_embedding_manager()
+    active_models = em.get_active_models()
+    default_model = em.get_default_model()
+    
+    # If query provided, perform search
+    if query:
+        # Parse metadata filters
+        metadata_filters = {}
+        for key in request.args:
+            if key.startswith('filter_key_'):
+                idx = key.split('_')[-1]
+                filter_key = request.args.get(f'filter_key_{idx}')
+                filter_value = request.args.get(f'filter_value_{idx}')
+                if filter_key and filter_value:
+                    metadata_filters[filter_key] = filter_value
+        
+        try:
+            model_id_to_use = model_id if model_id else (default_model.id if default_model else None)
+            vs = get_vector_store()
+            results = vs.search(
+                query_text=query,
+                model_id=model_id_to_use,
+                top_k=top_k,
+                min_score=min_score,
+                metadata_filters=metadata_filters
+            )
+        except Exception as e:
+            logger.error(f"Search error: {str(e)}")
+            flash(f'Search error: {str(e)}', 'error')
+    
+    return render_template(
+        'search.html',
+        query=query,
+        results=results,
+        active_models=active_models,
+        selected_model_id=model_id,
+        default_model=default_model,
+        top_k=top_k,
+        min_score=min_score
+    )
+
+@app.route('/api/search', methods=['POST'])
+def api_search():
+    """API endpoint for search"""
+    try:
+        data = request.json or {}
+        query = data.get('query', '')
+        model_id = data.get('model_id')
+        top_k = int(data.get('top_k', 5))
+        min_score = float(data.get('min_score', 0.5))
+        metadata_filters = data.get('metadata_filters', {})
+        
+        if not query:
+            return jsonify({'error': 'Query is required'}), 400
+        
+        vs = get_vector_store()
+        results = vs.search(
+            query_text=query,
+            model_id=model_id,
+            top_k=top_k,
+            min_score=min_score,
+            metadata_filters=metadata_filters
+        )
+        
+        return jsonify({'results': results})
+    except Exception as e:
+        logger.error(f"API search error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/models')
+def model_management():
+    """Model management page"""
+    models = EmbeddingModel.query.all()
+    return render_template('model_management.html', models=models)
+
+@app.route('/api/models', methods=['GET'])
+def api_get_models():
+    """API endpoint to get all models"""
+    models = EmbeddingModel.query.all()
+    model_list = []
+    
+    for model in models:
+        model_list.append({
+            'id': model.id,
+            'name': model.name,
+            'model_type': model.model_type,
+            'model_path': model.model_path,
+            'dimension': model.dimension,
+            'is_active': model.is_active,
+            'is_default': model.is_default,
+            'config': model.config,
+            'created_at': model.created_at.isoformat()
+        })
+    
+    return jsonify({'models': model_list})
+
+@app.route('/api/models', methods=['POST'])
+def api_add_model():
+    """API endpoint to add a new model"""
+    try:
+        data = request.json or {}
+        
+        required_fields = ['name', 'model_type', 'model_path', 'dimension']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'Field {field} is required'}), 400
+        
+        em = get_embedding_manager()
+        model = em.add_model(
+            name=data['name'],
+            model_type=data['model_type'],
+            model_path=data['model_path'],
+            dimension=int(data['dimension']),
+            is_active=data.get('is_active', True),
+            is_default=data.get('is_default', False),
+            config=data.get('config')
+        )
+        
+        return jsonify({
+            'id': model.id,
+            'name': model.name,
+            'model_type': model.model_type,
+            'model_path': model.model_path,
+            'dimension': model.dimension,
+            'is_active': model.is_active,
+            'is_default': model.is_default,
+            'config': model.config,
+            'created_at': model.created_at.isoformat()
+        }), 201
+    except Exception as e:
+        logger.error(f"Error adding model: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<model_id>', methods=['PUT'])
+def api_update_model(model_id):
+    """API endpoint to update a model"""
+    try:
+        data = request.json or {}
+        
+        # Only include fields that are provided
+        update_data = {}
+        for field in ['name', 'model_type', 'model_path', 'dimension', 'is_active', 'is_default', 'config']:
+            if field in data:
+                update_data[field] = data[field]
+        
+        em = get_embedding_manager()
+        model = em.update_model(model_id, **update_data)
+        
+        return jsonify({
+            'id': model.id,
+            'name': model.name,
+            'model_type': model.model_type,
+            'model_path': model.model_path,
+            'dimension': model.dimension,
+            'is_active': model.is_active,
+            'is_default': model.is_default,
+            'config': model.config,
+            'created_at': model.created_at.isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error updating model: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<model_id>', methods=['DELETE'])
+def api_delete_model(model_id):
+    """API endpoint to delete a model"""
+    try:
+        em = get_embedding_manager()
+        success = em.delete_model(model_id)
+        
+        if success:
+            return '', 204
+        else:
+            return jsonify({'error': 'Failed to delete model'}), 500
+    except Exception as e:
+        logger.error(f"Error deleting model: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/documents/<document_id>/sync', methods=['POST'])
+def api_sync_document(document_id):
+    """API endpoint to sync document embeddings"""
+    try:
+        model_id = request.json.get('model_id') if request.json else None
+        count = vector_store.sync_document_embeddings(document_id, model_id)
+        return jsonify({'message': f'Synchronized {count} embeddings for document {document_id}'})
+    except Exception as e:
+        logger.error(f"Error syncing document: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chunking', methods=['GET'])
+def api_get_chunking():
+    """API endpoint to get chunking parameters"""
+    return jsonify({
+        'chunk_size': document_processor.chunk_size,
+        'chunk_overlap': document_processor.chunk_overlap
+    })
+
+@app.route('/api/chunking', methods=['POST'])
+def api_set_chunking():
+    """API endpoint to set chunking parameters"""
+    try:
+        data = request.json
+        
+        chunk_size = int(data.get('chunk_size', 1000))
+        chunk_overlap = int(data.get('chunk_overlap', 200))
+        
+        document_processor.set_chunking_parameters(chunk_size, chunk_overlap)
+        
+        return jsonify({
+            'chunk_size': document_processor.chunk_size,
+            'chunk_overlap': document_processor.chunk_overlap
+        })
+    except Exception as e:
+        logger.error(f"Error setting chunking parameters: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Error handlers
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def server_error(e):
+    logger.error(f"Server error: {str(e)}")
+    return render_template('500.html'), 500
