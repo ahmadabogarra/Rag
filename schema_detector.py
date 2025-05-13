@@ -222,8 +222,16 @@ class DocumentSchemaDetector:
         """Check if content matches JSON patterns"""
         # Quick check for JSON markers
         content = content.strip()
-        if not (content.startswith('{') and content.endswith('}')) and \
-           not (content.startswith('[') and content.endswith(']')):
+        json_object_pattern = content.startswith('{') and content.endswith('}')
+        json_array_pattern = content.startswith('[') and content.endswith(']')
+        
+        # More lenient check for partial content
+        has_json_syntax = ('{' in content and '}' in content) or ('[' in content and ']' in content)
+        has_quotes = '"' in content
+        has_colons = ':' in content
+        
+        # If it doesn't even have basic JSON syntax, return early
+        if not (json_object_pattern or json_array_pattern) and not (has_json_syntax and has_quotes and has_colons):
             return 0, None
         
         try:
@@ -239,13 +247,26 @@ class DocumentSchemaDetector:
                 keys = list(data[0].keys())[:3]
                 hint = f"Array of objects with keys: {keys}{'...' if len(data[0]) > 3 else ''}"
                 return 95, hint
+            elif isinstance(data, list):
+                return 90, f"JSON array with {len(data)} items"
             else:
                 return 90, "Valid JSON"
         except json.JSONDecodeError:
-            # Check for partial JSON
-            if ('{' in content and '}' in content) or ('[' in content and ']' in content):
-                return 40, "Partial or malformed JSON"
-            return 0, None
+            # More careful analysis for partial JSON
+            if not (json_object_pattern or json_array_pattern) and has_json_syntax:
+                # Look for patterns like "key": value pairs
+                key_val_pattern = re.compile(r'"[^"]+"\s*:\s*("[^"]*"|[\d\.]+|\{|\[|true|false|null)')
+                matches = key_val_pattern.findall(content)
+                
+                if matches:
+                    confidence = min(50 + len(matches) * 5, 80)  # More matches = higher confidence
+                    return confidence, "Partial JSON with key-value pairs"
+            
+            # Even if it doesn't fully parse, if it has all markers it's likely JSON
+            if (json_object_pattern or json_array_pattern) and has_quotes and has_colons:
+                return 75, "Malformed but likely JSON"
+                
+            return 40, "Potential JSON-like content"
     
     def _check_xml_pattern(self, content: str) -> Tuple[float, Optional[str]]:
         """Check if content matches XML/HTML patterns"""

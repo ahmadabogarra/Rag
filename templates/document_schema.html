@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+
+{% block title %}Document Structure Settings{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1>Document Structure Settings</h1>
+      <p class="lead">Configure how documents are processed and chunked based on their structure</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">Document Structure Detection</h5>
+        </div>
+        <div class="card-body">
+          <p>The system automatically detects document structure types to optimize chunking:</p>
+          
+          <div class="mb-4">
+            <h6 class="fw-bold"><i class="bi bi-table me-2"></i>Structured Data</h6>
+            <p>CSV, Excel files and tabular data where each row represents a logical unit.</p>
+            <div class="alert alert-info">
+              <strong>Chunking Strategy:</strong> Row-based with header preservation
+            </div>
+          </div>
+          
+          <div class="mb-4">
+            <h6 class="fw-bold"><i class="bi bi-code-slash me-2"></i>Semi-Structured Data</h6>
+            <p>JSON, XML, YAML, and Markdown files with a defined hierarchy.</p>
+            <div class="alert alert-info">
+              <strong>Chunking Strategy:</strong> Semantic element-based (JSON objects, XML nodes, Markdown sections)
+            </div>
+          </div>
+          
+          <div class="mb-4">
+            <h6 class="fw-bold"><i class="bi bi-file-text me-2"></i>Unstructured Data</h6>
+            <p>Plain text, essays, articles, and other free-form content.</p>
+            <div class="alert alert-info">
+              <strong>Chunking Strategy:</strong> Paragraph or sentence-based with context overlap
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">Manual Override</h5>
+        </div>
+        <div class="card-body">
+          <p>Manually set the structure type for specific documents:</p>
+          
+          <form id="manualOverrideForm">
+            <div class="mb-3">
+              <label for="documentSelect" class="form-label">Document</label>
+              <select class="form-select" id="documentSelect" name="document_id">
+                <option value="">Select a document...</option>
+                {% for doc in documents %}
+                <option value="{{ doc.id }}" data-current="{{ doc.metadata.detected_structure if doc.metadata and 'detected_structure' in doc.metadata else 'unstructured' }}">
+                  {{ doc.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label">Current Detection</label>
+              <div id="currentDetection" class="py-2 px-3 border rounded bg-light">
+                <span class="badge bg-secondary">No document selected</span>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="structureType" class="form-label">Structure Type</label>
+              <select class="form-select" id="structureType" name="structure_type">
+                <option value="structured">Structured Data</option>
+                <option value="semi_structured">Semi-Structured Data</option>
+                <option value="unstructured">Unstructured Data</option>
+              </select>
+            </div>
+            
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save me-1"></i> Save and Reprocess
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <div class="card mt-4">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">Detection Statistics</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <div>Structured:</div>
+            <div class="fw-bold">{{ stats.structured }}</div>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <div>Semi-Structured:</div>
+            <div class="fw-bold">{{ stats.semi_structured }}</div>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <div>Unstructured:</div>
+            <div class="fw-bold">{{ stats.unstructured }}</div>
+          </div>
+          <div class="d-flex justify-content-between">
+            <div>Manual Overrides:</div>
+            <div class="fw-bold">{{ stats.overrides }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const documentSelect = document.getElementById('documentSelect');
+  const currentDetection = document.getElementById('currentDetection');
+  const structureType = document.getElementById('structureType');
+  const form = document.getElementById('manualOverrideForm');
+  
+  // Update current detection display when document changes
+  documentSelect.addEventListener('change', function() {
+    const selectedOption = documentSelect.options[documentSelect.selectedIndex];
+    const currentType = selectedOption.dataset.current || 'unstructured';
+    
+    if (documentSelect.value) {
+      let badge;
+      if (currentType === 'structured') {
+        badge = '<span class="badge bg-success">Structured Data</span>';
+      } else if (currentType === 'semi_structured') {
+        badge = '<span class="badge bg-info">Semi-Structured Data</span>';
+      } else {
+        badge = '<span class="badge bg-warning">Unstructured Data</span>';
+      }
+      currentDetection.innerHTML = badge;
+      structureType.value = currentType;
+    } else {
+      currentDetection.innerHTML = '<span class="badge bg-secondary">No document selected</span>';
+    }
+  });
+  
+  // Handle form submission
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!documentSelect.value) {
+      alert('Please select a document');
+      return;
+    }
+    
+    const documentId = documentSelect.value;
+    const newType = structureType.value;
+    
+    // Show loading state
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+    submitBtn.disabled = true;
+    
+    // Send request to update document structure type
+    fetch(`/api/documents/${documentId}/structure`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        structure_type: newType
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Update the data attribute
+        documentSelect.options[documentSelect.selectedIndex].dataset.current = newType;
+        
+        // Update the display
+        let badge;
+        if (newType === 'structured') {
+          badge = '<span class="badge bg-success">Structured Data</span>';
+        } else if (newType === 'semi_structured') {
+          badge = '<span class="badge bg-info">Semi-Structured Data</span>';
+        } else {
+          badge = '<span class="badge bg-warning">Unstructured Data</span>';
+        }
+        currentDetection.innerHTML = badge + ' <span class="badge bg-secondary">Updated</span>';
+        
+        // Show success message
+        alert('Document structure type updated and document reprocessed successfully');
+      } else {
+        alert('Error: ' + (data.error || 'Failed to update document structure type'));
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('An error occurred while updating document structure type');
+    })
+    .finally(() => {
+      // Restore button state
+      submitBtn.innerHTML = originalBtnText;
+      submitBtn.disabled = false;
+    });
+  });
+});
+</script>
+{% endblock %}

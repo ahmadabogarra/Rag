@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from flask import render_template, request, jsonify, redirect, url_for, flash, send_file
+from flask import render_template, request, jsonify, redirect, url_for, flash, send_file, current_app
 from werkzeug.utils import secure_filename
 from app import app, db
 from models import Document, EmbeddingModel, Metadata, Chunk
@@ -388,7 +388,8 @@ def api_sync_document(document_id):
     """API endpoint to sync document embeddings"""
     try:
         model_id = request.json.get('model_id') if request.json else None
-        count = vector_store.sync_document_embeddings(document_id, model_id)
+        vs = get_vector_store()
+        count = vs.sync_document_embeddings(document_id, model_id)
         return jsonify({'message': f'Synchronized {count} embeddings for document {document_id}'})
     except Exception as e:
         logger.error(f"Error syncing document: {str(e)}")
@@ -420,6 +421,76 @@ def api_set_chunking():
     except Exception as e:
         logger.error(f"Error setting chunking parameters: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+# Schema and Structure Routes
+@app.route('/document-schema')
+def document_schema_page():
+    """Document schema and structure settings page"""
+    # Get all documents with their metadata
+    documents = []
+    for doc in Document.query.all():
+        doc_metadata = {}
+        for meta in Metadata.query.filter_by(document_id=doc.id).all():
+            doc_metadata[meta.key] = meta.value
+        
+        doc.metadata = doc_metadata
+        documents.append(doc)
+    
+    # Calculate statistics
+    stats = {
+        'structured': 0,
+        'semi_structured': 0,
+        'unstructured': 0,
+        'overrides': 0
+    }
+    
+    for doc in documents:
+        structure_type = doc.metadata.get('detected_structure', 'unstructured')
+        stats[structure_type] += 1
+        
+        # Count manual overrides
+        if 'structure_override' in doc.metadata and doc.metadata['structure_override'] == 'true':
+            stats['overrides'] += 1
+    
+    return render_template('document_schema.html', documents=documents, stats=stats)
+
+@app.route('/api/documents/<document_id>/structure', methods=['POST'])
+def api_update_document_structure(document_id):
+    """API endpoint to update document structure type and reprocess chunks"""
+    try:
+        data = request.json
+        structure_type = data.get('structure_type', 'unstructured')
+        
+        if structure_type not in ['structured', 'semi_structured', 'unstructured']:
+            return jsonify({'success': False, 'error': 'Invalid structure type'}), 400
+        
+        # Get the document
+        document = Document.query.get_or_404(document_id)
+        
+        # Update metadata to indicate manual override
+        metadata = {
+            'detected_structure': structure_type,
+            'detection_confidence': '100.0',  # Manual override has 100% confidence
+            'structure_override': 'true'
+        }
+        
+        # Reprocess document chunks using the new structure type
+        document_processor.update_document(
+            document_id=document_id,
+            name=document.name,
+            content=document.content,
+            metadata=metadata
+        )
+        
+        # Sync embeddings
+        vs = get_vector_store()
+        vs.sync_document_embeddings(document_id)
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        logger.error(f"Error updating document structure: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Admin Settings Routes
 @app.route('/admin/settings')

@@ -185,19 +185,20 @@ class DocumentProcessor:
         
         db.session.commit()
     
-    def _create_chunks(self, document_id: str, content: str) -> List[Chunk]:
+    def _create_chunks(self, document_id: str, content: str, doc_structure: str = "unstructured") -> List[Chunk]:
         """
         Split document content into chunks with specified size and overlap
         
         Args:
             document_id: Document ID
             content: Document content to chunk
+            doc_structure: Document structure type ("structured", "semi_structured", "unstructured")
             
         Returns:
             List of created Chunk objects
         """
-        # Calculate positions for chunks
-        chunks_data = self._split_text(content, self.chunk_size, self.chunk_overlap)
+        # Calculate positions for chunks based on document structure
+        chunks_data = self._split_text(content, self.chunk_size, self.chunk_overlap, doc_structure)
         
         created_chunks = []
         for i, (chunk_text, start_pos, end_pos) in enumerate(chunks_data):
@@ -212,10 +213,11 @@ class DocumentProcessor:
             created_chunks.append(chunk)
         
         db.session.commit()
-        logger.info(f"Created {len(created_chunks)} chunks for document {document_id}")
+        logger.info(f"Created {len(created_chunks)} chunks for document {document_id} using {doc_structure} chunking")
         return created_chunks
     
-    def _split_text(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
+    def _split_text(self, text: str, chunk_size: int, chunk_overlap: int, 
+                     doc_structure: str = "unstructured") -> List[Tuple[str, int, int]]:
         """
         Split text into chunks with specified size and overlap
         
@@ -223,10 +225,24 @@ class DocumentProcessor:
             text: Text to split
             chunk_size: Maximum size of each chunk
             chunk_overlap: Overlap between chunks
+            doc_structure: Document structure type (unstructured, structured, semi_structured)
             
         Returns:
             List of tuples (chunk_text, start_position, end_position)
         """
+        if not text:
+            return []
+        
+        # Handle different document structure types
+        if doc_structure == "structured":
+            return self._split_structured_text(text, chunk_size, chunk_overlap)
+        elif doc_structure == "semi_structured":
+            return self._split_semi_structured_text(text, chunk_size, chunk_overlap)
+        else:  # Default to unstructured
+            return self._split_unstructured_text(text, chunk_size, chunk_overlap)
+    
+    def _split_unstructured_text(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
+        """Split unstructured text using sentence-aware splitting"""
         # Use sentence-aware splitting to avoid cutting sentences
         sentences = re.split(r'(?<=[.!?])\s+', text)
         
@@ -265,6 +281,281 @@ class DocumentProcessor:
             chunk_text = " ".join(current_chunk)
             end_pos = start_pos + len(chunk_text)
             chunks.append((chunk_text, start_pos, end_pos))
+        
+        return chunks
+    
+    def _split_structured_text(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
+        """Split structured text (CSV, tables, etc.) by rows with header preservation"""
+        import csv
+        from io import StringIO
+        
+        chunks = []
+        lines = text.splitlines()
+        
+        if not lines:
+            return chunks
+            
+        # Try to detect CSV dialect
+        try:
+            sample = '\n'.join(lines[:min(10, len(lines))])
+            dialect = csv.Sniffer().sniff(sample)
+            has_header = csv.Sniffer().has_header(sample)
+        except:
+            # Default to comma separated if detection fails
+            dialect = csv.excel
+            has_header = True  # Assume first row is header for structured data
+        
+        # Extract header if present
+        header = lines[0] if has_header else ""
+        start_row = 1 if has_header else 0
+        
+        current_chunk = [header] if has_header else []
+        current_start = 0
+        current_length = len(header) if has_header else 0
+        
+        # Find position of first content row
+        content_start_pos = text.find('\n') + 1 if has_header else 0
+        
+        for i in range(start_row, len(lines)):
+            line = lines[i]
+            line_length = len(line) + 1  # +1 for newline
+            
+            # If adding this line would exceed chunk size and we already have content,
+            # finalize the current chunk
+            if len(current_chunk) > (1 if has_header else 0) and current_length + line_length > chunk_size:
+                chunk_text = '\n'.join(current_chunk)
+                end_pos = content_start_pos + current_length
+                chunks.append((chunk_text, current_start, end_pos))
+                
+                # Start a new chunk with header
+                current_chunk = [header] if has_header else []
+                current_start = end_pos
+                current_length = len(header) + 1 if has_header else 0
+                content_start_pos = end_pos + (len(header) + 1 if has_header else 0)
+            
+            # Add the line to the current chunk
+            current_chunk.append(line)
+            current_length += line_length
+        
+        # Add the final chunk if there's anything left
+        if len(current_chunk) > (1 if has_header else 0):
+            chunk_text = '\n'.join(current_chunk)
+            end_pos = current_start + len(chunk_text)
+            chunks.append((chunk_text, current_start, end_pos))
+        
+        return chunks
+    
+    def _split_semi_structured_text(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
+        """Split semi-structured text (JSON, XML, Markdown, etc.) by semantic elements"""
+        import json
+        
+        # Try to detect format based on content
+        text = text.strip()
+        is_json = (text.startswith('{') and text.endswith('}')) or (text.startswith('[') and text.endswith(']'))
+        is_xml = text.startswith('<') and text.endswith('>')
+        is_markdown = bool(re.search(r'^#+\s+', text, re.MULTILINE))
+        
+        chunks = []
+        
+        # JSON processing
+        if is_json:
+            try:
+                data = json.loads(text)
+                
+                if isinstance(data, dict):
+                    # Process JSON object by root keys
+                    start_pos = 0
+                    for key, value in data.items():
+                        # Find the key in the original text
+                        key_marker = f'"{key}"'
+                        key_pos = text.find(key_marker, start_pos)
+                        
+                        if key_pos >= 0:
+                            # Find the value end (next key or end of object)
+                            if value is None:
+                                value_str = "null"
+                            elif isinstance(value, (int, float, bool)):
+                                value_str = json.dumps(value)
+                            else:
+                                value_str = json.dumps(value)
+                            
+                            # Create a chunk with this key-value pair
+                            chunk_text = f'{{{key_marker}: {value_str}}}'
+                            end_pos = key_pos + len(chunk_text)
+                            chunks.append((chunk_text, key_pos, end_pos))
+                            start_pos = end_pos
+                
+                elif isinstance(data, list) and all(isinstance(item, dict) for item in data):
+                    # Process JSON array of objects
+                    buffer = []
+                    buffer_length = 0
+                    buffer_start = 0
+                    
+                    for i, item in enumerate(data):
+                        item_json = json.dumps(item, ensure_ascii=False)
+                        item_length = len(item_json)
+                        
+                        # If this item would make the buffer too big, flush it
+                        if buffer and buffer_length + item_length > chunk_size:
+                            chunk_text = f"[{','.join(buffer)}]"
+                            chunks.append((chunk_text, buffer_start, buffer_start + len(chunk_text)))
+                            buffer = [item_json]
+                            buffer_length = item_length
+                            buffer_start += len(chunk_text)
+                        else:
+                            buffer.append(item_json)
+                            buffer_length += item_length + (2 if buffer else 0)  # Add comma and space when needed
+                    
+                    # Add remaining items in buffer
+                    if buffer:
+                        chunk_text = f"[{','.join(buffer)}]"
+                        chunks.append((chunk_text, buffer_start, buffer_start + len(chunk_text)))
+                
+                else:
+                    # Fall back to unstructured for other JSON types
+                    return self._split_unstructured_text(text, chunk_size, chunk_overlap)
+                
+            except json.JSONDecodeError:
+                # If JSON parsing fails, fall back to unstructured
+                return self._split_unstructured_text(text, chunk_size, chunk_overlap)
+        
+        # XML/HTML processing
+        elif is_xml:
+            try:
+                import xml.etree.ElementTree as ET
+                
+                # For XML, find major element boundaries
+                depth = 0
+                element_starts = []
+                element_ends = []
+                in_tag = False
+                current_element_start = -1
+                
+                for i, char in enumerate(text):
+                    if char == '<' and text[i+1:i+2] != '/':
+                        in_tag = True
+                        if depth == 0:
+                            current_element_start = i
+                        depth += 1
+                    elif char == '<' and text[i+1:i+2] == '/':
+                        in_tag = True
+                    elif char == '>' and in_tag:
+                        in_tag = False
+                        if text[i-1:i] == '/':  # Self-closing tag
+                            if depth > 0:
+                                depth -= 1
+                            if depth == 0 and current_element_start >= 0:
+                                element_starts.append(current_element_start)
+                                element_ends.append(i + 1)
+                                current_element_start = -1
+                        elif text[i-1:i-3:-1] == '/</':  # Closing tag
+                            depth -= 1
+                            if depth == 0 and current_element_start >= 0:
+                                element_starts.append(current_element_start)
+                                element_ends.append(i + 1)
+                                current_element_start = -1
+                
+                # Create chunks from element boundaries
+                for start, end in zip(element_starts, element_ends):
+                    if end - start <= chunk_size:
+                        chunks.append((text[start:end], start, end))
+                    else:
+                        # If element is too large, fall back to regular chunking for this element
+                        element_chunks = self._split_unstructured_text(
+                            text[start:end], chunk_size, chunk_overlap
+                        )
+                        for chunk_text, rel_start, rel_end in element_chunks:
+                            abs_start = start + rel_start
+                            abs_end = start + rel_end
+                            chunks.append((chunk_text, abs_start, abs_end))
+                
+                # If no elements were processed, fall back to unstructured
+                if not chunks:
+                    return self._split_unstructured_text(text, chunk_size, chunk_overlap)
+                
+            except Exception as e:
+                # If XML processing fails, fall back to unstructured
+                return self._split_unstructured_text(text, chunk_size, chunk_overlap)
+        
+        # Markdown processing
+        elif is_markdown:
+            # Split by headings and content blocks
+            lines = text.splitlines()
+            heading_pattern = re.compile(r'^(#+)\s+(.+)$')
+            
+            current_section = []
+            section_start = 0
+            current_length = 0
+            
+            for i, line in enumerate(lines):
+                line_with_newline = line + '\n'
+                line_length = len(line_with_newline)
+                
+                # Check if this is a heading
+                heading_match = heading_pattern.match(line)
+                is_heading = bool(heading_match)
+                heading_level = len(heading_match.group(1)) if heading_match else 0
+                
+                # If we hit a heading and already have content, finalize current section
+                if is_heading and heading_level <= 2 and current_section and i > 0:
+                    section_text = '\n'.join(current_section)
+                    end_pos = section_start + len(section_text)
+                    
+                    if len(section_text) <= chunk_size:
+                        chunks.append((section_text, section_start, end_pos))
+                    else:
+                        # If section is too large, split it further
+                        sub_chunks = self._split_unstructured_text(
+                            section_text, chunk_size, chunk_overlap
+                        )
+                        for chunk_text, rel_start, rel_end in sub_chunks:
+                            abs_start = section_start + rel_start
+                            abs_end = section_start + rel_end
+                            chunks.append((chunk_text, abs_start, abs_end))
+                    
+                    # Start new section
+                    current_section = [line]
+                    section_start = end_pos
+                    current_length = line_length
+                else:
+                    # Add line to current section
+                    if not current_section:  # If this is the first line
+                        section_start = 0
+                    
+                    current_section.append(line)
+                    current_length += line_length
+                    
+                    # If section is getting too large, finalize it
+                    if current_length >= chunk_size:
+                        section_text = '\n'.join(current_section)
+                        end_pos = section_start + len(section_text)
+                        chunks.append((section_text, section_start, end_pos))
+                        
+                        # Start new section (empty)
+                        current_section = []
+                        section_start = end_pos
+                        current_length = 0
+            
+            # Add final section if there's anything left
+            if current_section:
+                section_text = '\n'.join(current_section)
+                end_pos = section_start + len(section_text)
+                
+                if len(section_text) <= chunk_size:
+                    chunks.append((section_text, section_start, end_pos))
+                else:
+                    # If section is too large, split it further
+                    sub_chunks = self._split_unstructured_text(
+                        section_text, chunk_size, chunk_overlap
+                    )
+                    for chunk_text, rel_start, rel_end in sub_chunks:
+                        abs_start = section_start + rel_start
+                        abs_end = section_start + rel_end
+                        chunks.append((chunk_text, abs_start, abs_end))
+        
+        else:
+            # Fall back to unstructured for unknown formats
+            return self._split_unstructured_text(text, chunk_size, chunk_overlap)
         
         return chunks
     
