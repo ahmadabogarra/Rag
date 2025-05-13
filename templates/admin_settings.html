@@ -1,0 +1,357 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Settings{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1>Admin Settings</h1>
+  
+  <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="faiss-tab" data-bs-toggle="tab" data-bs-target="#faiss" 
+              type="button" role="tab" aria-controls="faiss" aria-selected="true">
+        FAISS Index Settings
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="embedding-tab" data-bs-toggle="tab" data-bs-target="#embedding" 
+              type="button" role="tab" aria-controls="embedding" aria-selected="false">
+        Embedding Settings
+      </button>
+    </li>
+  </ul>
+  
+  <div class="tab-content mt-3" id="settingsTabContent">
+    <!-- FAISS Settings Tab -->
+    <div class="tab-pane fade show active" id="faiss" role="tabpanel" aria-labelledby="faiss-tab">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">FAISS Index Configuration</h5>
+        </div>
+        <div class="card-body">
+          <form id="faissSettingsForm">
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              <strong>Warning:</strong> Changing these settings requires rebuilding all indices, which may take time depending on your data volume.
+            </div>
+            
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="indexType" class="form-label">Index Type</label>
+                <select class="form-select" id="indexType" name="index_type">
+                  {% for key, info in faiss_settings.INDEX_TYPES.items() %}
+                  <option value="{{ key }}" {% if faiss_settings.index_type == key %}selected{% endif %}>
+                    {{ info.name }} - {{ info.description }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="metricType" class="form-label">Metric Type</label>
+                <select class="form-select" id="metricType" name="metric_type">
+                  {% for key, info in faiss_settings.METRIC_TYPES.items() %}
+                  <option value="{{ key }}" {% if faiss_settings.metric_type == key %}selected{% endif %}>
+                    {{ info.name }} - {{ info.description }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="embeddingDim" class="form-label">Embedding Dimension</label>
+                <input type="number" class="form-control" id="embeddingDim" name="embedding_dim" 
+                      value="{{ faiss_settings.embedding_dim }}" readonly>
+                <div class="form-text">Determined by the active embedding models.</div>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="useGpu" class="form-check-label">
+                  <input type="checkbox" class="form-check-input" id="useGpu" name="use_index_gpu"
+                        {% if faiss_settings.use_index_gpu %}checked{% endif %}>
+                  Use GPU for indexing (if available)
+                </label>
+              </div>
+            </div>
+            
+            <div class="row mb-3">
+              <div class="col-12">
+                <label for="indexFactoryString" class="form-label">Index Factory String (Advanced)</label>
+                <input type="text" class="form-control" id="indexFactoryString" name="index_factory_string"
+                      value="{{ faiss_settings.index_factory_string }}" placeholder="{{ faiss_settings.get_factory_string() }}">
+                <div class="form-text">
+                  Advanced FAISS configuration string. Leave empty to use automatically generated configuration based on other settings.
+                </div>
+              </div>
+            </div>
+            
+            <!-- Advanced settings section that toggles based on index type -->
+            <div class="row mb-3" id="ivfSettings" style="display: {% if 'ivf' in faiss_settings.index_type %}block{% else %}none{% endif %};">
+              <div class="col-md-6">
+                <label for="nCentroids" class="form-label">Number of Centroids (IVF)</label>
+                <input type="number" class="form-control" id="nCentroids" name="n_centroids"
+                      value="{{ faiss_settings.n_centroids }}">
+                <div class="form-text">
+                  Number of voronoi cells for IVF index. Rule of thumb: sqrt(n) where n is the number of vectors.
+                </div>
+              </div>
+            </div>
+            
+            <div class="row mb-3" id="pqSettings" style="display: {% if 'pq' in faiss_settings.index_type %}block{% else %}none{% endif %};">
+              <div class="col-md-6">
+                <label for="pqM" class="form-label">PQ Sub-quantizers (M)</label>
+                <input type="number" class="form-control" id="pqM" name="pq_m"
+                      value="{{ faiss_settings.pq_m }}">
+                <div class="form-text">
+                  Number of sub-quantizers for Product Quantization. Must divide the dimension.
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="pqBits" class="form-label">PQ Bits</label>
+                <input type="number" class="form-control" id="pqBits" name="pq_bits"
+                      value="{{ faiss_settings.pq_bits }}">
+                <div class="form-text">
+                  Number of bits per sub-quantizer (typically 8).
+                </div>
+              </div>
+            </div>
+            
+            <div class="row mb-3" id="hnswSettings" style="display: {% if 'hnsw' in faiss_settings.index_type %}block{% else %}none{% endif %};">
+              <div class="col-md-4">
+                <label for="hnswM" class="form-label">HNSW Connections (M)</label>
+                <input type="number" class="form-control" id="hnswM" name="hnsw_m"
+                      value="{{ faiss_settings.hnsw_m }}">
+                <div class="form-text">
+                  Number of connections per node in HNSW graph.
+                </div>
+              </div>
+              
+              <div class="col-md-4">
+                <label for="hnswEfConstruction" class="form-label">HNSW ef_construction</label>
+                <input type="number" class="form-control" id="hnswEfConstruction" name="hnsw_ef_construction"
+                      value="{{ faiss_settings.hnsw_ef_construction }}">
+                <div class="form-text">
+                  Size of dynamic list for nearest neighbors during construction.
+                </div>
+              </div>
+              
+              <div class="col-md-4">
+                <label for="hnswEfSearch" class="form-label">HNSW ef_search</label>
+                <input type="number" class="form-control" id="hnswEfSearch" name="hnsw_ef_search"
+                      value="{{ faiss_settings.hnsw_ef_search }}">
+                <div class="form-text">
+                  Size of dynamic list for nearest neighbors during search.
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Embedding Settings Tab -->
+    <div class="tab-pane fade" id="embedding" role="tabpanel" aria-labelledby="embedding-tab">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">Embedding Configuration</h5>
+        </div>
+        <div class="card-body">
+          <form id="embeddingSettingsForm">
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              <strong>Warning:</strong> Changing these settings requires reprocessing embeddings, which may take time.
+            </div>
+            
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="embDimension" class="form-label">Embedding Dimension</label>
+                <input type="number" class="form-control" id="embDimension" name="embedding_dim" 
+                      value="{{ embedding_settings.embedding_dim }}" readonly>
+                <div class="form-text">Determined by the active embedding models.</div>
+              </div>
+              
+              <div class="col-md-6">
+                <label for="dtype" class="form-label">Data Type</label>
+                <select class="form-select" id="dtype" name="dtype">
+                  {% for key, info in embedding_settings.DTYPES.items() %}
+                  <option value="{{ key }}" {% if embedding_settings.dtype == key %}selected{% endif %}>
+                    {{ info.name }} - {{ info.description }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="normalizeVectors" name="normalize_vectors"
+                    {% if embedding_settings.normalize_vectors %}checked{% endif %}>
+              <label class="form-check-label" for="normalizeVectors">
+                Normalize Vectors
+              </label>
+              <div class="form-text">
+                Normalize vectors to unit length before storage. Recommended for inner product similarity.
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Action Buttons -->
+  <div class="d-flex justify-content-between mt-4">
+    <button type="button" class="btn btn-secondary" id="resetButton">Reset to Defaults</button>
+    <div>
+      <button type="button" class="btn btn-warning me-2" id="rebuildButton">
+        <i class="bi bi-arrow-repeat me-1"></i> Rebuild Index
+      </button>
+      <button type="button" class="btn btn-primary" id="saveButton">
+        <i class="bi bi-save me-1"></i> Save Settings
+      </button>
+    </div>
+  </div>
+  
+  <!-- Rebuild Progress Modal -->
+  <div class="modal fade" id="rebuildModal" tabindex="-1" aria-labelledby="rebuildModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="rebuildModalLabel">Rebuilding Indices</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>Rebuilding all indices with new settings. This may take some time...</p>
+          <div class="progress">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" 
+                 aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Handle changes to index type to show relevant settings
+  document.getElementById('indexType').addEventListener('change', function() {
+    const indexType = this.value;
+    
+    // Show/hide IVF settings
+    document.getElementById('ivfSettings').style.display = 
+      indexType.includes('ivf') ? 'block' : 'none';
+    
+    // Show/hide PQ settings
+    document.getElementById('pqSettings').style.display = 
+      indexType.includes('pq') ? 'block' : 'none';
+    
+    // Show/hide HNSW settings
+    document.getElementById('hnswSettings').style.display = 
+      indexType.includes('hnsw') ? 'block' : 'none';
+  });
+  
+  // Save settings
+  document.getElementById('saveButton').addEventListener('click', function() {
+    const faissData = new FormData(document.getElementById('faissSettingsForm'));
+    const embeddingData = new FormData(document.getElementById('embeddingSettingsForm'));
+    
+    // Combine the data
+    const data = {
+      faiss: Object.fromEntries(faissData.entries()),
+      embedding: Object.fromEntries(embeddingData.entries())
+    };
+    
+    // Convert checkbox values to booleans
+    data.faiss.use_index_gpu = !!data.faiss.use_index_gpu;
+    data.embedding.normalize_vectors = !!data.embedding.normalize_vectors;
+    
+    // Convert numeric values
+    ['embedding_dim', 'n_centroids', 'pq_m', 'pq_bits', 'hnsw_m', 
+     'hnsw_ef_construction', 'hnsw_ef_search'].forEach(key => {
+      if (data.faiss[key]) {
+        data.faiss[key] = parseInt(data.faiss[key]);
+      }
+    });
+    
+    data.embedding.embedding_dim = parseInt(data.embedding.embedding_dim);
+    
+    // Send to server
+    fetch('/api/admin/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Settings saved successfully!');
+      } else {
+        alert('Error saving settings: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('An error occurred while saving settings.');
+    });
+  });
+  
+  // Reset settings
+  document.getElementById('resetButton').addEventListener('click', function() {
+    if (confirm('Are you sure you want to reset all settings to defaults?')) {
+      fetch('/api/admin/settings/reset', {
+        method: 'POST'
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('Settings reset successfully! Page will refresh.');
+          window.location.reload();
+        } else {
+          alert('Error resetting settings: ' + data.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while resetting settings.');
+      });
+    }
+  });
+  
+  // Rebuild index
+  document.getElementById('rebuildButton').addEventListener('click', function() {
+    if (confirm('Are you sure you want to rebuild all indices? This may take some time.')) {
+      // Show rebuild modal
+      const rebuildModal = new bootstrap.Modal(document.getElementById('rebuildModal'));
+      rebuildModal.show();
+      
+      // Start rebuild process
+      fetch('/api/admin/settings/rebuild-index', {
+        method: 'POST'
+      })
+      .then(response => response.json())
+      .then(data => {
+        rebuildModal.hide();
+        
+        if (data.success) {
+          alert('Indices rebuilt successfully!');
+        } else {
+          alert('Error rebuilding indices: ' + data.error);
+        }
+      })
+      .catch(error => {
+        rebuildModal.hide();
+        console.error('Error:', error);
+        alert('An error occurred while rebuilding indices.');
+      });
+    }
+  });
+});
+</script>
+{% endblock %}

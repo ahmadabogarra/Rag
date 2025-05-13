@@ -1,8 +1,10 @@
 import re
 import logging
-from typing import List, Dict, Tuple, Optional
+import os
+from typing import List, Dict, Tuple, Optional, Any
 from app import db
 from models import Document, Chunk, Metadata
+from schema_detector import DocumentSchemaDetector
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +23,14 @@ class DocumentProcessor:
         """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.schema_detector = DocumentSchemaDetector()
     
     def process_document(self, 
                         name: str, 
                         content: str, 
                         mime_type: str, 
-                        metadata: Optional[Dict[str, str]] = None) -> Document:
+                        metadata: Optional[Dict[str, str]] = None,
+                        override_type: Optional[str] = None) -> Document:
         """
         Process a document - save to database, extract metadata, and create chunks
         
@@ -35,10 +39,22 @@ class DocumentProcessor:
             content: Document content/text
             mime_type: MIME type of the document
             metadata: Optional dictionary of metadata key-value pairs
+            override_type: Optional manual override for document structure type
             
         Returns:
             Document object
         """
+        # Detect document structure
+        file_extension = os.path.splitext(name)[1].lower().lstrip('.') if '.' in name else ''
+        schema_info = self.schema_detector.detect_schema(
+            raw_text=content, 
+            mime_type=mime_type,
+            override_type=override_type
+        )
+        
+        detected_type = schema_info["detected_type"]
+        confidence = schema_info["confidence_score"]
+        
         # Create new document
         document = Document(
             name=name,
@@ -51,13 +67,25 @@ class DocumentProcessor:
         db.session.commit()
         
         # Add metadata if provided
-        if metadata:
-            self._add_metadata(document.id, metadata)
+        if metadata is None:
+            metadata = {}
+            
+        # Add schema detection metadata
+        metadata.update({
+            "detected_structure": detected_type,
+            "detection_confidence": str(confidence)
+        })
         
-        # Create chunks for the document
-        self._create_chunks(document.id, content)
+        # Add structure hint if available
+        if "structure_hint" in schema_info:
+            metadata["structure_hint"] = schema_info["structure_hint"]
         
-        logger.info(f"Processed document: {name} (ID: {document.id})")
+        self._add_metadata(document.id, metadata)
+        
+        # Create chunks for the document using detected structure type
+        self._create_chunks(document.id, content, detected_type)
+        
+        logger.info(f"Processed document: {name} (ID: {document.id}) as {detected_type}")
         return document
     
     def update_document(self, 

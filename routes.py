@@ -421,6 +421,78 @@ def api_set_chunking():
         logger.error(f"Error setting chunking parameters: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# Admin Settings Routes
+@app.route('/admin/settings')
+def admin_settings_page():
+    """Admin settings page"""
+    from admin_settings import AdminSettings
+    
+    admin_settings = AdminSettings()
+    
+    return render_template(
+        'admin_settings.html',
+        faiss_settings=admin_settings.faiss_settings,
+        embedding_settings=admin_settings.embedding_settings
+    )
+
+@app.route('/api/admin/settings', methods=['POST'])
+def api_admin_settings():
+    """API endpoint to save admin settings"""
+    from admin_settings import AdminSettings
+    
+    try:
+        data = request.json
+        
+        admin_settings = AdminSettings()
+        
+        # Update FAISS settings
+        if 'faiss' in data:
+            admin_settings.faiss_settings._update_from_dict(data['faiss'])
+        
+        # Update embedding settings
+        if 'embedding' in data:
+            admin_settings.embedding_settings._update_from_dict(data['embedding'])
+        
+        # Save all settings
+        admin_settings.save()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error saving admin settings: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/settings/reset', methods=['POST'])
+def api_admin_settings_reset():
+    """API endpoint to reset admin settings to defaults"""
+    try:
+        # Remove saved settings from app config
+        if 'FAISS_SETTINGS' in current_app.config:
+            del current_app.config['FAISS_SETTINGS']
+            
+        if 'EMBEDDING_SETTINGS' in current_app.config:
+            del current_app.config['EMBEDDING_SETTINGS']
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error resetting admin settings: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/settings/rebuild-index', methods=['POST'])
+def api_admin_rebuild_index():
+    """API endpoint to rebuild the index with current settings"""
+    from admin_settings import AdminSettings
+    
+    try:
+        admin_settings = AdminSettings()
+        vs = get_vector_store()
+        
+        success = admin_settings.rebuild_index(vs)
+        
+        return jsonify({'success': success})
+    except Exception as e:
+        logger.error(f"Error rebuilding index: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # Error handlers
 @app.errorhandler(404)
 def page_not_found(e):

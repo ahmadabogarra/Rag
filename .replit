@@ -2,7 +2,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["openssl", "postgresql"]
+packages = ["glibcLocales", "libyaml", "openssl", "postgresql", "xcodebuild", "zlib"]
 
 [deployment]
 deploymentTarget = "autoscale"
