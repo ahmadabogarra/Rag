@@ -54,17 +54,27 @@ class DocumentSchemaDetector:
             self._detect_unstructured_text
         ]
     
-    def detect_schema(self, raw_text: str, mime_type: Optional[str] = None) -> Dict[str, Any]:
+    def detect_schema(self, raw_text: str, mime_type: Optional[str] = None, 
+                    override_type: Optional[str] = None) -> Dict[str, Any]:
         """
         Detect the schema/structure type of a document.
         
         Args:
             raw_text: The raw text content of the document
             mime_type: Optional MIME type hint
+            override_type: Optional manual override for structure type
             
         Returns:
             Dictionary with detection results, including structure type and confidence
         """
+        # If override_type is provided, return it immediately with max confidence
+        if override_type and override_type in ['structured', 'semi_structured', 'unstructured']:
+            return {
+                'detected_type': override_type,
+                'confidence_score': 100.0,
+                'structure_hint': 'Manual override'
+            }
+            
         # Start with default result
         result = {
             'detected_type': 'unstructured',

@@ -265,11 +265,13 @@ class DocumentProcessor:
             if method == 'row_based':
                 min_rows = config.get('min_rows_per_chunk', 1)
                 max_rows = config.get('max_rows_per_chunk', 10)
-                return self._split_structured_text_row_based(text, min_rows, max_rows)
+                # Use existing structured text method
+                return self._split_structured_text(text, chunk_size, chunk_overlap) 
             elif method == 'multi_row':
                 min_rows = config.get('min_rows_per_chunk', 1)
                 max_rows = config.get('max_rows_per_chunk', 10)
-                return self._split_structured_text_multi_row(text, min_rows, max_rows)
+                # Use existing structured text method
+                return self._split_structured_text(text, chunk_size, chunk_overlap)
             else:
                 # Default to standard structured text splitting
                 return self._split_structured_text(text, chunk_size, chunk_overlap)
@@ -280,11 +282,13 @@ class DocumentProcessor:
             
             if method == 'semantic_elements':
                 preserve_hierarchy = config.get('preserve_hierarchy', True)
-                return self._split_semi_structured_text_semantic(text, chunk_size, chunk_overlap, preserve_hierarchy)
+                # Use existing method as fallback until we implement the specialized one
+                return self._split_semi_structured_text(text, chunk_size, chunk_overlap)
             elif method == 'custom_path':
                 element_path = config.get('element_path', '')
                 preserve_hierarchy = config.get('preserve_hierarchy', True)
-                return self._split_semi_structured_text_path(text, chunk_size, chunk_overlap, element_path, preserve_hierarchy)
+                # Use existing method as fallback until we implement the specialized one
+                return self._split_semi_structured_text(text, chunk_size, chunk_overlap)
             else:
                 # Default to standard semi-structured text splitting
                 return self._split_semi_structured_text(text, chunk_size, chunk_overlap)
@@ -296,13 +300,17 @@ class DocumentProcessor:
             if method == 'fixed_size':
                 chunk_size = config.get('chunk_size', chunk_size)
                 chunk_overlap = config.get('chunk_overlap', chunk_overlap)
+                # Use our existing fixed size chunking method
                 return self._split_unstructured_text_fixed_size(text, chunk_size, chunk_overlap)
             elif method == 'sentence_based':
+                # Use our existing sentence-based method
                 return self._split_unstructured_text_sentence(text, chunk_size, chunk_overlap)
             elif method == 'paragraph_based':
+                # Use our existing paragraph-based method 
                 return self._split_unstructured_text_paragraph(text, chunk_size, chunk_overlap)
             elif method == 'regex_based':
                 regex_pattern = config.get('regex_pattern', r'\n\s*\n|\r\n\s*\r\n')
+                # Use our existing regex-based method
                 return self._split_unstructured_text_regex(text, chunk_size, chunk_overlap, regex_pattern)
             else:
                 # Default to standard unstructured text splitting
