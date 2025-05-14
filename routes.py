@@ -763,6 +763,94 @@ def api_admin_rebuild_index():
 def page_not_found(e):
     return render_template('404.html'), 404
 
+# Test Routes
+@app.route('/test/upload')
+def test_upload_page():
+    """Test page for document upload and analysis"""
+    # Get structure statistics
+    stats = {
+        'structured': 0,
+        'semi_structured': 0, 
+        'unstructured': 0,
+        'total': 0
+    }
+    
+    # Get language statistics
+    language_stats = {}
+    
+    # Process all documents to get statistics
+    for doc in Document.query.all():
+        stats['total'] += 1
+        
+        # Get document metadata
+        doc_metadata = {}
+        for meta in Metadata.query.filter_by(document_id=doc.id).all():
+            doc_metadata[meta.key] = meta.value
+        
+        # Get structure type
+        structure_type = doc_metadata.get('detected_structure', 'unstructured')
+        stats[structure_type] += 1
+        
+        # Get language
+        language = doc_metadata.get('detected_language', 'unknown')
+        language_stats[language] = language_stats.get(language, 0) + 1
+    
+    # Calculate percentages
+    if stats['total'] > 0:
+        stats['structured_percent'] = int(stats['structured'] / stats['total'] * 100)
+        stats['semi_structured_percent'] = int(stats['semi_structured'] / stats['total'] * 100)
+        stats['unstructured_percent'] = int(stats['unstructured'] / stats['total'] * 100)
+    else:
+        stats['structured_percent'] = 0
+        stats['semi_structured_percent'] = 0
+        stats['unstructured_percent'] = 0
+    
+    # Get recent documents with enriched data
+    recent_documents = []
+    for doc in Document.query.order_by(Document.created_at.desc()).limit(10).all():
+        # Get document metadata
+        doc_metadata = {}
+        for meta in Metadata.query.filter_by(document_id=doc.id).all():
+            doc_metadata[meta.key] = meta.value
+        
+        # Get chunk count
+        chunk_count = Chunk.query.filter_by(document_id=doc.id).count()
+        
+        # Create enriched document object
+        enriched_doc = {
+            'id': doc.id,
+            'name': doc.name,
+            'structure_type': doc_metadata.get('detected_structure', 'unstructured'),
+            'confidence': int(float(doc_metadata.get('detection_confidence', '0')) * 100),
+            'language': doc_metadata.get('detected_language', 'unknown'),
+            'chunk_count': chunk_count,
+            'created_at': doc.created_at
+        }
+        
+        recent_documents.append(enriched_doc)
+    
+    # Language names mapping
+    lang_names = {
+        'ar': 'العربية',
+        'en': 'الإنجليزية',
+        'fr': 'الفرنسية',
+        'es': 'الإسبانية',
+        'de': 'الألمانية',
+        'zh': 'الصينية',
+        'ru': 'الروسية',
+        'ja': 'اليابانية',
+        'multilingual': 'متعدد اللغات',
+        'unknown': 'غير معروفة'
+    }
+    
+    return render_template(
+        'test_upload.html',
+        stats=stats,
+        language_stats=language_stats,
+        recent_documents=recent_documents,
+        lang_names=lang_names
+    )
+
 @app.errorhandler(500)
 def server_error(e):
     logger.error(f"Server error: {str(e)}")

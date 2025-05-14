@@ -136,7 +136,7 @@
                     <tr>
                       <td>{{ lang_names.get(lang, lang) }}</td>
                       <td>{{ count }}</td>
-                      <td>{{ (count / stats.total * 100)|round(1) if stats.total > 0 else 0 }}%</td>
+                      <td>{{ (count / stats.total * 100)|int if stats.total > 0 else 0 }}%</td>
                     </tr>
                     {% endfor %}
                   </tbody>
