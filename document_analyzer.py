@@ -201,23 +201,37 @@ class DocumentAnalyzer:
         
         return fields
 
-    def _process_xml_element(self, element: Any, parent_path: str = '') -> List[Dict[str, str]]:
-        """Process XML element recursively"""
+    def _process_xml_element(self, element: Any, parent_path: str = '') -> List[Dict[str, Any]]:
+        """Process XML element recursively with namespace handling and samples"""
         fields = []
         
-        # Add current element
-        current_path = f"{parent_path}/{element.tag}" if parent_path else element.tag
+        # Handle namespace
+        tag = element.tag
+        if '}' in tag:
+            namespace, tag = tag.split('}', 1)
+            namespace = namespace[1:]  # Remove {
+        else:
+            namespace = None
+            
+        # Build path
+        current_path = f"{parent_path}/{tag}" if parent_path else tag
+        
+        # Add current element with sample value
         fields.append({
             'name': current_path,
-            'type': 'element'
+            'type': 'element',
+            'namespace': namespace,
+            'sample': element.text.strip() if element.text and element.text.strip() else None
         })
         
-        # Add attributes
-        for attr in element.attrib:
+        # Add attributes with samples
+        for attr, value in element.attrib.items():
             attr_path = f"{current_path}/@{attr}"
             fields.append({
                 'name': attr_path,
-                'type': 'attribute'
+                'type': 'attribute',
+                'namespace': namespace,
+                'sample': value
             })
         
         # Process children
