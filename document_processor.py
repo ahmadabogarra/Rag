@@ -92,7 +92,9 @@ class DocumentProcessor:
                         document_id: str, 
                         name: Optional[str] = None, 
                         content: Optional[str] = None, 
-                        metadata: Optional[Dict[str, str]] = None) -> Document:
+                        metadata: Optional[Dict[str, str]] = None,
+                        structure_type: Optional[str] = None,
+                        chunking_config: Optional[Dict[str, Any]] = None) -> Document:
         """
         Update an existing document, refresh chunks if content changed
         
@@ -101,6 +103,8 @@ class DocumentProcessor:
             name: New document name (optional)
             content: New document content (optional)
             metadata: New metadata key-value pairs (optional)
+            structure_type: Document structure type (optional)
+            chunking_config: Configuration for chunking strategy (optional)
             
         Returns:
             Updated Document object
@@ -137,8 +141,14 @@ class DocumentProcessor:
             Chunk.query.filter_by(document_id=document_id).delete()
             db.session.commit()
             
+            # Use structure_type from args or from metadata or default to unstructured
+            if structure_type is None and metadata and 'detected_structure' in metadata:
+                structure_type = metadata['detected_structure']
+            elif structure_type is None:
+                structure_type = "unstructured"
+            
             # Create new chunks
-            self._create_chunks(document_id, document.content)
+            self._create_chunks(document_id, document.content, structure_type, chunking_config)
             
             logger.info(f"Updated document content and chunks: {document.name} (ID: {document_id})")
         else:
@@ -185,7 +195,9 @@ class DocumentProcessor:
         
         db.session.commit()
     
-    def _create_chunks(self, document_id: str, content: str, doc_structure: str = "unstructured") -> List[Chunk]:
+    def _create_chunks(self, document_id: str, content: str, 
+                        doc_structure: str = "unstructured", 
+                        chunking_config: Optional[Dict[str, Any]] = None) -> List[Chunk]:
         """
         Split document content into chunks with specified size and overlap
         
@@ -193,12 +205,19 @@ class DocumentProcessor:
             document_id: Document ID
             content: Document content to chunk
             doc_structure: Document structure type ("structured", "semi_structured", "unstructured")
+            chunking_config: Optional configuration for chunking strategy
             
         Returns:
             List of created Chunk objects
         """
-        # Calculate positions for chunks based on document structure
-        chunks_data = self._split_text(content, self.chunk_size, self.chunk_overlap, doc_structure)
+        # Calculate positions for chunks based on document structure and config
+        chunks_data = self._split_text(
+            content, 
+            self.chunk_size, 
+            self.chunk_overlap, 
+            doc_structure, 
+            chunking_config
+        )
         
         created_chunks = []
         for i, (chunk_text, start_pos, end_pos) in enumerate(chunks_data):
@@ -217,7 +236,8 @@ class DocumentProcessor:
         return created_chunks
     
     def _split_text(self, text: str, chunk_size: int, chunk_overlap: int, 
-                     doc_structure: str = "unstructured") -> List[Tuple[str, int, int]]:
+                     doc_structure: str = "unstructured", 
+                     chunking_config: Optional[Dict[str, Any]] = None) -> List[Tuple[str, int, int]]:
         """
         Split text into chunks with specified size and overlap
         
@@ -226,6 +246,7 @@ class DocumentProcessor:
             chunk_size: Maximum size of each chunk
             chunk_overlap: Overlap between chunks
             doc_structure: Document structure type (unstructured, structured, semi_structured)
+            chunking_config: Optional configuration for chunking strategy
             
         Returns:
             List of tuples (chunk_text, start_position, end_position)
@@ -233,15 +254,68 @@ class DocumentProcessor:
         if not text:
             return []
         
+        if chunking_config is None:
+            chunking_config = {}
+            
         # Handle different document structure types
         if doc_structure == "structured":
-            return self._split_structured_text(text, chunk_size, chunk_overlap)
+            config = chunking_config.get('structured', {})
+            method = config.get('method', 'row_based')
+            
+            if method == 'row_based':
+                min_rows = config.get('min_rows_per_chunk', 1)
+                max_rows = config.get('max_rows_per_chunk', 10)
+                return self._split_structured_text_row_based(text, min_rows, max_rows)
+            elif method == 'multi_row':
+                min_rows = config.get('min_rows_per_chunk', 1)
+                max_rows = config.get('max_rows_per_chunk', 10)
+                return self._split_structured_text_multi_row(text, min_rows, max_rows)
+            else:
+                # Default to standard structured text splitting
+                return self._split_structured_text(text, chunk_size, chunk_overlap)
+                
         elif doc_structure == "semi_structured":
-            return self._split_semi_structured_text(text, chunk_size, chunk_overlap)
-        else:  # Default to unstructured
-            return self._split_unstructured_text(text, chunk_size, chunk_overlap)
+            config = chunking_config.get('semi_structured', {})
+            method = config.get('method', 'semantic_elements')
+            
+            if method == 'semantic_elements':
+                preserve_hierarchy = config.get('preserve_hierarchy', True)
+                return self._split_semi_structured_text_semantic(text, chunk_size, chunk_overlap, preserve_hierarchy)
+            elif method == 'custom_path':
+                element_path = config.get('element_path', '')
+                preserve_hierarchy = config.get('preserve_hierarchy', True)
+                return self._split_semi_structured_text_path(text, chunk_size, chunk_overlap, element_path, preserve_hierarchy)
+            else:
+                # Default to standard semi-structured text splitting
+                return self._split_semi_structured_text(text, chunk_size, chunk_overlap)
+                
+        else:  # Unstructured
+            config = chunking_config.get('unstructured', {})
+            method = config.get('method', 'paragraph_based')
+            
+            if method == 'fixed_size':
+                chunk_size = config.get('chunk_size', chunk_size)
+                chunk_overlap = config.get('chunk_overlap', chunk_overlap)
+                return self._split_unstructured_text_fixed_size(text, chunk_size, chunk_overlap)
+            elif method == 'sentence_based':
+                return self._split_unstructured_text_sentence(text, chunk_size, chunk_overlap)
+            elif method == 'paragraph_based':
+                return self._split_unstructured_text_paragraph(text, chunk_size, chunk_overlap)
+            elif method == 'regex_based':
+                regex_pattern = config.get('regex_pattern', r'\n\s*\n|\r\n\s*\r\n')
+                return self._split_unstructured_text_regex(text, chunk_size, chunk_overlap, regex_pattern)
+            else:
+                # Default to standard unstructured text splitting
+                return self._split_unstructured_text(text, chunk_size, chunk_overlap)
     
     def _split_unstructured_text(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
+        """
+        Default split for unstructured text using sentence-aware splitting
+        Note: This is a fallback method, prefer using the specialized methods
+        """
+        return self._split_unstructured_text_sentence(text, chunk_size, chunk_overlap)
+        
+    def _split_unstructured_text_sentence(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
         """Split unstructured text using sentence-aware splitting"""
         # Use sentence-aware splitting to avoid cutting sentences
         sentences = re.split(r'(?<=[.!?])\s+', text)
@@ -283,9 +357,126 @@ class DocumentProcessor:
             chunks.append((chunk_text, start_pos, end_pos))
         
         return chunks
+        
+    def _split_unstructured_text_fixed_size(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
+        """Split unstructured text into fixed-size chunks with overlap"""
+        chunks = []
+        
+        # Simple fixed-size chunking with overlap
+        for i in range(0, len(text), chunk_size - chunk_overlap):
+            start_pos = i
+            end_pos = min(i + chunk_size, len(text))
+            
+            # Try to break at sentence boundary
+            if end_pos < len(text):
+                # Look for sentence ending punctuation followed by space or newline
+                for j in range(end_pos, max(start_pos, end_pos - 100), -1):
+                    if j < len(text) and text[j] in '.!?' and (j + 1 == len(text) or text[j + 1].isspace()):
+                        end_pos = j + 1
+                        break
+            
+            chunk_text = text[start_pos:end_pos]
+            if chunk_text.strip():  # Only add non-empty chunks
+                chunks.append((chunk_text, start_pos, end_pos))
+        
+        return chunks
+        
+    def _split_unstructured_text_paragraph(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
+        """Split unstructured text by paragraphs"""
+        # Split text into paragraphs (delimiter: empty line)
+        paragraphs = re.split(r'\n\s*\n|\r\n\s*\r\n', text)
+        
+        chunks = []
+        current_chunk = []
+        current_length = 0
+        start_pos = 0
+        
+        for paragraph in paragraphs:
+            paragraph = paragraph.strip()
+            if not paragraph:
+                continue
+                
+            paragraph_length = len(paragraph)
+            
+            # If adding this paragraph would exceed chunk size and we already have content,
+            # finalize the current chunk
+            if current_chunk and (current_length + paragraph_length > chunk_size):
+                chunk_text = "\n\n".join(current_chunk)
+                end_pos = start_pos + len(chunk_text)
+                chunks.append((chunk_text, start_pos, end_pos))
+                
+                # Start a new chunk with overlap
+                if chunk_overlap > 0 and chunks:
+                    # For paragraph-based splitting, overlap means including some paragraphs
+                    # from the previous chunk
+                    overlap_paragraphs = min(2, len(current_chunk))  # Take up to 2 paragraphs for overlap
+                    overlap_text = "\n\n".join(current_chunk[-overlap_paragraphs:])
+                    start_pos = end_pos - len(overlap_text)
+                    current_chunk = current_chunk[-overlap_paragraphs:]
+                    current_length = len(overlap_text)
+                else:
+                    start_pos = end_pos
+                    current_chunk = []
+                    current_length = 0
+            
+            # Add the paragraph to the current chunk
+            current_chunk.append(paragraph)
+            current_length += paragraph_length + 4  # +4 for the '\n\n'
+        
+        # Add the final chunk if there's anything left
+        if current_chunk:
+            chunk_text = "\n\n".join(current_chunk)
+            end_pos = start_pos + len(chunk_text)
+            chunks.append((chunk_text, start_pos, end_pos))
+        
+        return chunks
+        
+    def _split_unstructured_text_regex(self, text: str, chunk_size: int, chunk_overlap: int, regex_pattern: str) -> List[Tuple[str, int, int]]:
+        """Split unstructured text using a custom regex pattern"""
+        try:
+            # Split text using the provided regex pattern
+            regex = re.compile(regex_pattern)
+            splits = []
+            
+            # Track positions while splitting
+            last_end = 0
+            for match in regex.finditer(text):
+                if match.start() > last_end:
+                    splits.append((text[last_end:match.start()], last_end, match.start()))
+                last_end = match.end()
+            
+            # Add the final chunk
+            if last_end < len(text):
+                splits.append((text[last_end:], last_end, len(text)))
+                
+            # Process splits to ensure they don't exceed chunk_size
+            chunks = []
+            for split_text, start_pos, end_pos in splits:
+                # If this split is too large, use fixed-size chunking on it
+                if len(split_text) > chunk_size:
+                    sub_chunks = self._split_unstructured_text_fixed_size(
+                        split_text, chunk_size, chunk_overlap)
+                    
+                    # Adjust positions to be relative to the original text
+                    for sub_text, sub_start, sub_end in sub_chunks:
+                        chunks.append((sub_text, start_pos + sub_start, start_pos + sub_end))
+                else:
+                    chunks.append((split_text, start_pos, end_pos))
+            
+            return chunks
+        except Exception as e:
+            logger.warning(f"Error in regex chunking: {str(e)}")
+            # Fallback to fixed-size chunking
+            return self._split_unstructured_text_fixed_size(text, chunk_size, chunk_overlap)
     
     def _split_structured_text(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
-        """Split structured text (CSV, tables, etc.) by rows with header preservation"""
+        """
+        Default split for structured text (fallback method)
+        """
+        return self._split_structured_text_row_based(text, 1, 10)
+        
+    def _split_structured_text_row_based(self, text: str, min_rows: int = 1, max_rows: int = 10) -> List[Tuple[str, int, int]]:
+        """Split structured text by rows with header preservation"""
         import csv
         from io import StringIO
         
@@ -309,41 +500,91 @@ class DocumentProcessor:
         header = lines[0] if has_header else ""
         start_row = 1 if has_header else 0
         
-        current_chunk = [header] if has_header else []
-        current_start = 0
-        current_length = len(header) if has_header else 0
-        
         # Find position of first content row
         content_start_pos = text.find('\n') + 1 if has_header else 0
         
+        # Track rows for chunking
+        current_rows = []
+        current_start = 0
+        row_count = 0
+        
         for i in range(start_row, len(lines)):
             line = lines[i]
-            line_length = len(line) + 1  # +1 for newline
-            
-            # If adding this line would exceed chunk size and we already have content,
-            # finalize the current chunk
-            if len(current_chunk) > (1 if has_header else 0) and current_length + line_length > chunk_size:
-                chunk_text = '\n'.join(current_chunk)
-                end_pos = content_start_pos + current_length
-                chunks.append((chunk_text, current_start, end_pos))
+            if not line.strip():  # Skip empty lines
+                continue
                 
-                # Start a new chunk with header
-                current_chunk = [header] if has_header else []
-                current_start = end_pos
-                current_length = len(header) + 1 if has_header else 0
-                content_start_pos = end_pos + (len(header) + 1 if has_header else 0)
+            # Add this row
+            current_rows.append(line)
+            row_count += 1
             
-            # Add the line to the current chunk
-            current_chunk.append(line)
-            current_length += line_length
+            # If we've reached max_rows, create a chunk
+            if row_count >= max_rows:
+                # Create chunk with header
+                if has_header:
+                    chunk_lines = [header] + current_rows
+                else:
+                    chunk_lines = current_rows
+                    
+                chunk_text = '\n'.join(chunk_lines)
+                current_end = current_start + len(chunk_text)
+                chunks.append((chunk_text, current_start, current_end))
+                
+                # Reset for next chunk
+                current_rows = []
+                current_start = current_end
+                row_count = 0
         
-        # Add the final chunk if there's anything left
-        if len(current_chunk) > (1 if has_header else 0):
-            chunk_text = '\n'.join(current_chunk)
-            end_pos = current_start + len(chunk_text)
-            chunks.append((chunk_text, current_start, end_pos))
+        # Add final chunk if there are remaining rows and we have at least min_rows
+        if current_rows and row_count >= min_rows:
+            if has_header:
+                chunk_lines = [header] + current_rows
+            else:
+                chunk_lines = current_rows
+                
+            chunk_text = '\n'.join(chunk_lines)
+            current_end = current_start + len(chunk_text)
+            chunks.append((chunk_text, current_start, current_end))
         
         return chunks
+    
+    def _split_structured_text_multi_row(self, text: str, min_rows: int = 5, max_rows: int = 20) -> List[Tuple[str, int, int]]:
+        """Split structured text by combining multiple rows based on sizes"""
+        import csv
+        from io import StringIO
+        
+        chunks = []
+        lines = text.splitlines()
+        
+        if not lines:
+            return chunks
+            
+        # Try to detect CSV dialect
+        try:
+            sample = '\n'.join(lines[:min(10, len(lines))])
+            dialect = csv.Sniffer().sniff(sample)
+            has_header = csv.Sniffer().has_header(sample)
+        except:
+            # Default to comma separated if detection fails
+            dialect = csv.excel
+            has_header = True  # Assume first row is header for structured data
+        
+        # Extract header if present
+        header = lines[0] if has_header else ""
+        start_row = 1 if has_header else 0
+        
+        # Track content size to make more balanced chunks
+        row_lengths = []
+        for i in range(start_row, len(lines)):
+            line = lines[i].strip()
+            if line:  # Skip empty lines
+                row_lengths.append(len(line))
+        
+        # Calculate average row length to determine target chunk size
+        avg_row_length = sum(row_lengths) / len(row_lengths) if row_lengths else 50
+        target_row_count = max(min_rows, min(max_rows, int(1000 / avg_row_length)))
+        
+        # Now create chunks with this target size
+        return self._split_structured_text_row_based(text, min_rows, target_row_count)
     
     def _split_semi_structured_text(self, text: str, chunk_size: int, chunk_overlap: int) -> List[Tuple[str, int, int]]:
         """Split semi-structured text (JSON, XML, Markdown, etc.) by semantic elements"""
