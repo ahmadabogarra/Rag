@@ -928,7 +928,8 @@ class DocumentAnalyzer:
                 chunks.append(content[:min(1000, len(content))])
 
         # Check if it's XML-like
-        elif content.strip().startswith('<') and '>' in content:            try:
+        elif content.strip().startswith('<') and '>' in content:
+            try:
                 import xml.etree.ElementTree as ET
                 root = ET.fromstring(content)
 
