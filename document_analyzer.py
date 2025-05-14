@@ -51,7 +51,10 @@ class DocumentAnalyzer:
             
             # Log detected fields
             logger.info(f"Detected {len(fields)} fields for document {document_id}")
-        
+        except Exception as e:
+            logger.error(f"Error extracting fields: {e}")
+            fields = []
+
         # Initialize chunking configuration with defaults
         chunking_config = {
             'structured': {
