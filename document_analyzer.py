@@ -109,10 +109,14 @@ class DocumentAnalyzer:
             metadata_fields = processing_config.get('metadata_fields', [])
         
         # Get chunking configuration
-        chunking_config = processing_config.get('chunking_config', self.default_configs)
+        chunking_config = self.default_configs
+        if processing_config and 'chunking_config' in processing_config:
+            chunking_config = processing_config.get('chunking_config')
         
         # Get embedding configuration
-        embedding_config = processing_config.get('embedding_config', self.default_embedding_config)
+        embedding_config = self.default_embedding_config
+        if processing_config and 'embedding_config' in processing_config:
+            embedding_config = processing_config.get('embedding_config')
         
         # Get custom metadata
         custom_metadata = {}
@@ -121,11 +125,15 @@ class DocumentAnalyzer:
                 custom_metadata[key[7:]] = value
         
         # Get store_full_content setting
-        store_full_content = processing_config.get('store_full_content', True)
+        store_full_content = True
+        if processing_config and 'store_full_content' in processing_config:
+            store_full_content = processing_config.get('store_full_content')
         
         # Get appropriate models based on language
         available_models = self._get_available_models(detected_language)
-        selected_model_id = processing_config.get('selected_model_id')
+        selected_model_id = None
+        if processing_config and 'selected_model_id' in processing_config:
+            selected_model_id = processing_config.get('selected_model_id')
         
         if not selected_model_id and available_models:
             selected_model_id = available_models[0].id
