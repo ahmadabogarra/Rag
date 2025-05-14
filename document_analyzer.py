@@ -430,16 +430,35 @@ class DocumentAnalyzer:
                         if isinstance(obj, dict):
                             for key, value in obj.items():
                                 field_name = f"{prefix}{key}" if prefix else key
-                                # تجاهل الحقول المتداخلة إذا كانت قيمها معقدة جداً
-                                if isinstance(value, (dict, list)) and len(str(value)) > 100:
-                                    sample = str(value)[:100] + "..."
+                                
+                                # معالجة القيم المتداخلة
+                                if isinstance(value, dict):
+                                    # إضافة الحقل الرئيسي
+                                    add_field(
+                                        name=field_name,
+                                        description=f'كائن JSON: {field_name}',
+                                        sample=json.dumps(value, ensure_ascii=False)[:100] + "..."
+                                    )
+                                    # استخراج الحقول الفرعية
+                                    new_prefix = f"{field_name}."
+                                    extract_fields(value, new_prefix)
+                                elif isinstance(value, list):
+                                    # إضافة الحقل كمصفوفة
+                                    sample = str(value[:2]) + "..." if len(value) > 2 else str(value)
+                                    add_field(
+                                        name=field_name,
+                                        description=f'مصفوفة JSON: {field_name}',
+                                        sample=sample
+                                    )
+                                    # إذا كانت المصفوفة تحتوي على كائنات، استخرج حقولها
+                                    if value and isinstance(value[0], dict):
+                                        extract_fields(value[0], f"{field_name}[].")
                                 else:
-                                    sample = str(value)
-                                add_field(
-                                    name=field_name,
-                                    description=f'حقل JSON: {field_name}',
-                                    sample=sample
-                                )
+                                    add_field(
+                                        name=field_name,
+                                        description=f'حقل JSON: {field_name}',
+                                        sample=str(value)
+                                    )
                     
                     if isinstance(data, dict):
                         extract_fields(data)
