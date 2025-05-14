@@ -39,6 +39,36 @@ class DocumentAnalyzer:
             if not key.startswith('detected_') and key not in ['store_full_content', 'chunking_config', 'embedding_config']:
                 custom_metadata[key] = value
 
+        # Initialize chunking configuration with defaults
+        chunking_config = {
+            'structured': {
+                'method': 'row_based',
+                'min_rows_per_chunk': 1,
+                'max_rows_per_chunk': 10
+            },
+            'semi_structured': {
+                'method': 'semantic_elements',
+                'element_path': '',
+                'preserve_hierarchy': True
+            },
+            'unstructured': {
+                'method': 'paragraph_based',
+                'chunk_size': 1000,
+                'chunk_overlap': 200,
+                'regex_pattern': r'\n\s*\n|\r\n\s*\r\n'
+            }
+        }
+        
+        # Try to get existing chunking config from metadata
+        try:
+            if 'chunking_config' in metadata:
+                saved_config = json.loads(metadata['chunking_config'])
+                # Update only the relevant structure type config
+                if structure_type in saved_config:
+                    chunking_config[structure_type].update(saved_config[structure_type])
+        except:
+            pass
+
         return {
             'document': document,
             'metadata': metadata,
@@ -48,7 +78,8 @@ class DocumentAnalyzer:
             'store_full_content': metadata.get('store_full_content', 'false') == 'true',
             'detected_structure_name': metadata.get('detected_structure', 'unstructured'),
             'detection_confidence': float(metadata.get('detection_confidence', '0.0')),
-            'detected_language': metadata.get('detected_language', 'ar')
+            'detected_language': metadata.get('detected_language', 'ar'),
+            'chunking_config': chunking_config
         }
 
     def _extract_json_fields(self, data: Any, parent_path: str = '') -> List[Dict[str, str]]:
