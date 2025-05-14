@@ -135,39 +135,80 @@
           <div class="card-body">
             <p class="text-muted">حدد الحقول التي ستستخدم في التضمين (embedding) والبيانات الوصفية (metadata)</p>
             
-            <table class="table table-sm table-bordered">
-              <thead>
-                <tr>
-                  <th>الحقل</th>
-                  <th class="text-center">مصدر للتضمين</th>
-                  <th class="text-center">بيانات وصفية</th>
-                </tr>
-              </thead>
-              <tbody>
+            <div class="mb-4">
+              <h6>الحقول المكتشفة:</h6>
+              <div class="field-selection-container">
                 {% for field in detected_fields %}
-                <tr>
-                  <td>
-                    <strong>{{ field.name }}</strong>
-                    <small class="text-muted d-block">{{ field.description }}</small>
-                  </td>
-                  <td class="text-center">
-                    <div class="form-check d-flex justify-content-center">
-                      <input class="form-check-input" type="checkbox" name="embedding_fields" 
-                             value="{{ field.name }}" id="emb_{{ field.name }}"
-                             {% if field.name in embedding_fields %}checked{% endif %}>
+                <div class="card mb-2 field-card">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div>
+                        <h6 class="mb-1">{{ field.name }}</h6>
+                        <p class="text-muted small mb-2">{{ field.description }}</p>
+                        <div class="field-sample">
+                          <small class="text-muted">نموذج: </small>
+                          <code>{{ field.sample }}</code>
+                        </div>
+                      </div>
+                      <div class="field-actions">
+                        <div class="form-check mb-2">
+                          <input class="form-check-input" type="checkbox" 
+                                 name="embedding_fields" 
+                                 value="{{ field.name }}" 
+                                 id="emb_{{ field.name }}"
+                                 onchange="updateFieldPreview()"
+                                 {% if field.name in embedding_fields %}checked{% endif %}>
+                          <label class="form-check-label" for="emb_{{ field.name }}">
+                            <span class="badge bg-primary">تضمين</span>
+                          </label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" 
+                                 name="metadata_fields" 
+                                 value="{{ field.name }}" 
+                                 id="meta_{{ field.name }}"
+                                 onchange="updateFieldPreview()"
+                                 {% if field.name in metadata_fields %}checked{% endif %}>
+                          <label class="form-check-label" for="meta_{{ field.name }}">
+                            <span class="badge bg-info">بيانات وصفية</span>
+                          </label>
+                        </div>
+                      </div>
                     </div>
-                  </td>
-                  <td class="text-center">
-                    <div class="form-check d-flex justify-content-center">
-                      <input class="form-check-input" type="checkbox" name="metadata_fields" 
-                             value="{{ field.name }}" id="meta_{{ field.name }}"
-                             {% if field.name in metadata_fields %}checked{% endif %}>
-                    </div>
-                  </td>
-                </tr>
+                  </div>
+                </div>
                 {% endfor %}
-              </tbody>
-            </table>
+              </div>
+              
+              <!-- Field Selection Preview -->
+              <div class="card mt-4">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0">ملخص اختيار الحقول</h6>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <h6 class="mb-2">
+                        <i class="fas fa-vector-square text-primary me-2"></i>
+                        حقول التضمين المحددة:
+                      </h6>
+                      <ul id="selectedEmbeddingFields" class="list-unstyled mb-0">
+                        <!-- Will be populated by JavaScript -->
+                      </ul>
+                    </div>
+                    <div class="col-md-6">
+                      <h6 class="mb-2">
+                        <i class="fas fa-tags text-info me-2"></i>
+                        البيانات الوصفية المحددة:
+                      </h6>
+                      <ul id="selectedMetadataFields" class="list-unstyled mb-0">
+                        <!-- Will be populated by JavaScript -->
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             
             <div class="form-check mb-3">
               <input class="form-check-input" type="checkbox" name="store_full_content" id="storeFullContent" 

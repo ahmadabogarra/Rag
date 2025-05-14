@@ -1,3 +1,29 @@
+
+function updateFieldPreview() {
+    // تحديث حقول التضمين المحددة
+    const embeddingFields = Array.from(document.querySelectorAll('input[name="embedding_fields"]:checked'))
+        .map(input => input.value);
+    
+    const embeddingList = document.getElementById('selectedEmbeddingFields');
+    embeddingList.innerHTML = embeddingFields.length ? 
+        embeddingFields.map(field => `<li><span class="badge bg-primary">${field}</span></li>`).join('') :
+        '<li class="text-muted">لم يتم تحديد أي حقول للتضمين</li>';
+    
+    // تحديث البيانات الوصفية المحددة
+    const metadataFields = Array.from(document.querySelectorAll('input[name="metadata_fields"]:checked'))
+        .map(input => input.value);
+    
+    const metadataList = document.getElementById('selectedMetadataFields');
+    metadataList.innerHTML = metadataFields.length ?
+        metadataFields.map(field => `<li><span class="badge bg-info">${field}</span></li>`).join('') :
+        '<li class="text-muted">لم يتم تحديد أي حقول للبيانات الوصفية</li>';
+}
+
+// تحديث العرض عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    updateFieldPreview();
+});
+
 /**
  * Document Animations - Playful loading animations with document-themed spinners
  */
