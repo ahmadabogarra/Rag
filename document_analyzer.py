@@ -431,4 +431,3 @@ class DocumentAnalyzer:
         except Exception as e:
             logger.error(f"Error generating preview: {e}")
             return []
-`
