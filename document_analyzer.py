@@ -384,43 +384,31 @@ class DocumentAnalyzer:
                 })
 
         def extract_json_fields(data: Any, parent_path: str = '') -> None:
-            """استخراج الحقول من كائن JSON متداخل مع دعم المسارات"""
+            """استخراج الحقول الرئيسية من كائن JSON"""
             if isinstance(data, dict):
                 for key, value in data.items():
-                    current_path = f"{parent_path}.{key}" if parent_path else key
-                    
-                    if isinstance(value, dict):
-                        add_field(
-                            name=current_path,
-                            description=f'كائن JSON: {current_path}',
-                            sample=json.dumps(value, ensure_ascii=False),
-                            field_type='object'
-                        )
-                        extract_json_fields(value, current_path)
-                    
-                    elif isinstance(value, list):
-                        if value and isinstance(value[0], dict):
-                            add_field(
-                                name=f"{current_path}[]",
-                                description=f'مصفوفة كائنات: {current_path}',
-                                sample=f"[{len(value)} items]",
-                                field_type='array'
-                            )
-                            extract_json_fields(value[0], f"{current_path}[]")
+                    # لا نضيف parent_path للحقول الرئيسية
+                    if not parent_path:
+                        sample = ""
+                        if isinstance(value, dict):
+                            sample = json.dumps(value, ensure_ascii=False)[:100]
+                        elif isinstance(value, list):
+                            sample = str(value[:2]) + "..." if len(value) > 2 else str(value)
                         else:
-                            add_field(
-                                name=current_path,
-                                description=f'مصفوفة قيم: {current_path}',
-                                sample=str(value[:2]) + "..." if len(value) > 2 else str(value),
-                                field_type='array'
-                            )
-                    else:
+                            sample = str(value)
+                            
                         add_field(
-                            name=current_path,
-                            description=f'حقل JSON: {current_path}',
-                            sample=str(value),
-                            field_type='value'
+                            name=key,
+                            description=f'حقل {key}',
+                            sample=sample,
+                            field_type='field'
                         )
+                    # نتابع العمق فقط إذا كنا نبحث عن الحقول داخل قائمة البيانات
+                    elif isinstance(value, dict) and parent_path == "items":
+                        extract_json_fields(value, "items")
+                    elif isinstance(value, list) and not parent_path:
+                        if value and isinstance(value[0], dict):
+                            extract_json_fields(value[0], "items")
 
         # تحليل المستندات المنظمة (مثل CSV)
         if structure_type == 'structured':
