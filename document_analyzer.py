@@ -6,14 +6,14 @@ from typing import Dict, Any, List, Optional
 from app import db
 from models import Document, Chunk, Metadata
 from document_processor import DocumentProcessor
-from schema_detector import SchemaDetector
+from schema_detector import DocumentSchemaDetector
 
 logger = logging.getLogger(__name__)
 
 class DocumentAnalyzer:
     def __init__(self, document_processor: DocumentProcessor):
         self.document_processor = document_processor
-        self.schema_detector = SchemaDetector()
+        self.schema_detector = DocumentSchemaDetector()
 
     def analyze_document(self, document_id: str) -> Dict[str, Any]:
         document = Document.query.get_or_404(document_id)
