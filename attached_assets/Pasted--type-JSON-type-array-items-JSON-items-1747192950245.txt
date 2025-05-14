@@ -1,0 +1,275 @@
+الحقول المكتشفة:
+type
+حقل JSON: type
+
+نموذج: array
+تضمين
+بيانات وصفية
+items
+كائن JSON: items
+
+نموذج: {"type": "object", "properties": {"model_name": {"type": "string"}, "description": {"type": "string"
+تضمين
+بيانات وصفية
+items.type
+حقل JSON: items.type
+
+نموذج: object
+تضمين
+بيانات وصفية
+items.properties
+كائن JSON: items.properties
+
+نموذج: {"model_name": {"type": "string"}, "description": {"type": "string"}, "tags": {"type": "array", "ite
+تضمين
+بيانات وصفية
+items.properties.model_name
+كائن JSON: items.properties.model_name
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.model_name.type
+حقل JSON: items.properties.model_name.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.description
+كائن JSON: items.properties.description
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.description.type
+حقل JSON: items.properties.description.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.tags
+كائن JSON: items.properties.tags
+
+نموذج: {"type": "array", "items": {"type": "string"}}
+تضمين
+بيانات وصفية
+items.properties.tags.type
+حقل JSON: items.properties.tags.type
+
+نموذج: array
+تضمين
+بيانات وصفية
+items.properties.tags.items
+كائن JSON: items.properties.tags.items
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.tags.items.type
+حقل JSON: items.properties.tags.items.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.faqs
+كائن JSON: items.properties.faqs
+
+نموذج: {"type": "array", "items": {"type": "string"}}
+تضمين
+بيانات وصفية
+items.properties.faqs.type
+حقل JSON: items.properties.faqs.type
+
+نموذج: array
+تضمين
+بيانات وصفية
+items.properties.faqs.items
+كائن JSON: items.properties.faqs.items
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.faqs.items.type
+حقل JSON: items.properties.faqs.items.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.fields
+كائن JSON: items.properties.fields
+
+نموذج: {"type": "object", "properties": {"name": {"type": "object", "properties": {"name": {"type": "string
+تضمين
+بيانات وصفية
+items.properties.fields.type
+حقل JSON: items.properties.fields.type
+
+نموذج: object
+تضمين
+بيانات وصفية
+items.properties.fields.properties
+كائن JSON: items.properties.fields.properties
+
+نموذج: {"name": {"type": "object", "properties": {"name": {"type": "string"}, "type": {"type": "string"}, "
+تضمين
+بيانات وصفية
+items.properties.fields.properties.name
+كائن JSON: items.properties.fields.properties.name
+
+نموذج: {"type": "object", "properties": {"name": {"type": "string"}, "type": {"type": "string"}, "help": {"
+تضمين
+بيانات وصفية
+items.properties.fields.properties.name.type
+حقل JSON: items.properties.fields.properties.name.type
+
+نموذج: object
+تضمين
+بيانات وصفية
+items.properties.fields.properties.name.properties
+كائن JSON: items.properties.fields.properties.name.properties
+
+نموذج: {"name": {"type": "string"}, "type": {"type": "string"}, "help": {"type": "string"}}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.name.properties.name
+كائن JSON: items.properties.fields.properties.name.properties.name
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.name.properties.name.type
+حقل JSON: items.properties.fields.properties.name.properties.name.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.fields.properties.name.properties.type
+كائن JSON: items.properties.fields.properties.name.properties.type
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.name.properties.type.type
+حقل JSON: items.properties.fields.properties.name.properties.type.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.fields.properties.name.properties.help
+كائن JSON: items.properties.fields.properties.name.properties.help
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.name.properties.help.type
+حقل JSON: items.properties.fields.properties.name.properties.help.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.fields.properties.phone
+كائن JSON: items.properties.fields.properties.phone
+
+نموذج: {"type": "object", "properties": {"name": {"type": "string"}, "type": {"type": "string"}, "help": {"
+تضمين
+بيانات وصفية
+items.properties.fields.properties.phone.type
+حقل JSON: items.properties.fields.properties.phone.type
+
+نموذج: object
+تضمين
+بيانات وصفية
+items.properties.fields.properties.phone.properties
+كائن JSON: items.properties.fields.properties.phone.properties
+
+نموذج: {"name": {"type": "string"}, "type": {"type": "string"}, "help": {"type": "string"}}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.phone.properties.name
+كائن JSON: items.properties.fields.properties.phone.properties.name
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.phone.properties.name.type
+حقل JSON: items.properties.fields.properties.phone.properties.name.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.fields.properties.phone.properties.type
+كائن JSON: items.properties.fields.properties.phone.properties.type
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.phone.properties.type.type
+حقل JSON: items.properties.fields.properties.phone.properties.type.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.fields.properties.phone.properties.help
+كائن JSON: items.properties.fields.properties.phone.properties.help
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.phone.properties.help.type
+حقل JSON: items.properties.fields.properties.phone.properties.help.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.fields.properties.email
+كائن JSON: items.properties.fields.properties.email
+
+نموذج: {"type": "object", "properties": {"name": {"type": "string"}, "type": {"type": "string"}, "help": {"
+تضمين
+بيانات وصفية
+items.properties.fields.properties.email.type
+حقل JSON: items.properties.fields.properties.email.type
+
+نموذج: object
+تضمين
+بيانات وصفية
+items.properties.fields.properties.email.properties
+كائن JSON: items.properties.fields.properties.email.properties
+
+نموذج: {"name": {"type": "string"}, "type": {"type": "string"}, "help": {"type": "string"}}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.email.properties.name
+كائن JSON: items.properties.fields.properties.email.properties.name
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.email.properties.name.type
+حقل JSON: items.properties.fields.properties.email.properties.name.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.fields.properties.email.properties.type
+كائن JSON: items.properties.fields.properties.email.properties.type
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.email.properties.type.type
+حقل JSON: items.properties.fields.properties.email.properties.type.type
+
+نموذج: string
+تضمين
+بيانات وصفية
+items.properties.fields.properties.email.properties.help
+كائن JSON: items.properties.fields.properties.email.properties.help
+
+نموذج: {"type": "string"}
+تضمين
+بيانات وصفية
+items.properties.fields.properties.email.properties.help.type
+حقل JSON: items.properties.fields.properties.email.properties.help.type
+
+نموذج: string
