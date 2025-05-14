@@ -24,11 +24,11 @@ class DocumentAnalyzer:
 
         # Detect structure if not already set
         if 'detected_structure' not in metadata:
-            structure_info = self.schema_detector.detect_structure(content)
+            structure_info = self.schema_detector.detect_schema(content)
             metadata.update({
-                'detected_structure': structure_info['type'],
-                'detection_confidence': str(structure_info['confidence']),
-                'structure_hint': structure_info.get('hint', '')
+                'detected_structure': structure_info['detected_type'],
+                'detection_confidence': str(structure_info['confidence_score']),
+                'structure_hint': structure_info.get('structure_hint', '')
             })
             self._save_metadata(document_id, metadata)
 
@@ -36,13 +36,21 @@ class DocumentAnalyzer:
         
         # Extract fields based on structure type
         fields = []
-        if structure_type == 'structured':
-            fields = self._extract_csv_fields(content)
-        elif structure_type == 'semi_structured':
-            if content.strip().startswith('{') or content.strip().startswith('['):
-                fields = self._extract_json_fields(json.loads(content))
-            else:
-                fields = self._extract_xml_fields(content)
+        try:
+            if structure_type == 'structured':
+                fields = self._extract_csv_fields(content)
+            elif structure_type == 'semi_structured':
+                if content.strip().startswith('{') or content.strip().startswith('['):
+                    try:
+                        json_data = json.loads(content)
+                        fields = self._extract_json_fields(json_data)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"JSON parsing error: {e}")
+                else:
+                    fields = self._extract_xml_fields(content)
+            
+            # Log detected fields
+            logger.info(f"Detected {len(fields)} fields for document {document_id}")
         
         # Initialize chunking configuration with defaults
         chunking_config = {
