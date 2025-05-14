@@ -422,10 +422,10 @@ def api_set_chunking():
         logger.error(f"Error setting chunking parameters: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-# Schema and Structure Routes
+# Document Analysis and Processing Routes
 @app.route('/document-schema')
 def document_schema_page():
-    """Document schema and structure settings page"""
+    """Document schema settings overview page"""
     # Get all documents with their metadata
     documents = []
     for doc in Document.query.all():
@@ -453,6 +453,200 @@ def document_schema_page():
             stats['overrides'] += 1
     
     return render_template('document_schema.html', documents=documents, stats=stats)
+
+@app.route('/documents/<document_id>/analyze')
+def document_analysis_page(document_id):
+    """Detailed document analysis and configuration page"""
+    from document_analyzer import DocumentAnalyzer
+    
+    # Analyze the document
+    analyzer = DocumentAnalyzer(document_processor)
+    analysis_result = analyzer.analyze_document(document_id)
+    
+    return render_template('document_analysis.html', **analysis_result)
+
+@app.route('/api/documents/<document_id>/process', methods=['POST'])
+def api_process_document(document_id):
+    """API to process a document with specified configuration"""
+    from document_analyzer import DocumentAnalyzer
+    
+    try:
+        # Extract configuration from form data
+        structure_type = request.form.get('structure_type', 'unstructured')
+        language = request.form.get('language', 'en')
+        
+        # Get embedding and metadata fields
+        embedding_fields = request.form.getlist('embedding_fields')
+        metadata_fields = request.form.getlist('metadata_fields')
+        store_full_content = request.form.get('store_full_content') == 'on'
+        
+        # Get custom metadata
+        custom_meta_keys = request.form.getlist('custom_meta_key[]')
+        custom_meta_values = request.form.getlist('custom_meta_value[]')
+        custom_metadata = {}
+        
+        for i in range(min(len(custom_meta_keys), len(custom_meta_values))):
+            key = custom_meta_keys[i].strip()
+            value = custom_meta_values[i].strip()
+            if key and value:
+                custom_metadata[key] = value
+        
+        # Get chunking configuration based on structure type
+        chunking_config = {}
+        
+        # Structured data chunking config
+        if structure_type == 'structured':
+            method = request.form.get('structured_strategy', 'row_based')
+            min_rows = request.form.get('min_rows_per_chunk', 1)
+            max_rows = request.form.get('max_rows_per_chunk', 10)
+            
+            chunking_config['structured'] = {
+                'method': method,
+                'min_rows_per_chunk': int(min_rows),
+                'max_rows_per_chunk': int(max_rows)
+            }
+            
+        # Semi-structured data chunking config
+        elif structure_type == 'semi_structured':
+            method = request.form.get('semi_structured_strategy', 'semantic_elements')
+            element_path = request.form.get('element_path', '')
+            preserve_hierarchy = request.form.get('preserve_hierarchy') == 'on'
+            
+            chunking_config['semi_structured'] = {
+                'method': method,
+                'element_path': element_path,
+                'preserve_hierarchy': preserve_hierarchy
+            }
+            
+        # Unstructured data chunking config
+        else:
+            method = request.form.get('unstructured_strategy', 'paragraph_based')
+            chunk_size = request.form.get('chunk_size', 1000)
+            chunk_overlap = request.form.get('chunk_overlap', 200)
+            regex_pattern = request.form.get('regex_pattern', r'\n\s*\n|\r\n\s*\r\n')
+            
+            chunking_config['unstructured'] = {
+                'method': method,
+                'chunk_size': int(chunk_size),
+                'chunk_overlap': int(chunk_overlap),
+                'regex_pattern': regex_pattern
+            }
+        
+        # Get embedding configuration
+        embedding_model = request.form.get('embedding_model')
+        embedding_dtype = request.form.get('embedding_dtype', 'float32')
+        embedding_normalize = request.form.get('embedding_normalize', 'true') == 'true'
+        max_tokens = request.form.get('max_tokens_per_chunk', 512)
+        
+        embedding_config = {
+            'dtype': embedding_dtype,
+            'normalize': embedding_normalize,
+            'max_tokens_per_chunk': int(max_tokens)
+        }
+        
+        # Create complete configuration
+        config = {
+            'detected_structure': structure_type,
+            'detected_language': language,
+            'embedding_fields': embedding_fields,
+            'metadata_fields': metadata_fields,
+            'store_full_content': store_full_content,
+            'chunking_config': chunking_config,
+            'embedding_config': embedding_config,
+            'custom_metadata': custom_metadata,
+            'selected_model_id': embedding_model
+        }
+        
+        # Check if this is a save-only request
+        save_only = request.form.get('save_only') == 'true'
+        
+        # Process the document or just save the configuration
+        analyzer = DocumentAnalyzer(document_processor)
+        
+        if save_only:
+            success = analyzer.save_processing_config(document_id, config)
+            message = 'Configuration saved successfully'
+        else:
+            success = analyzer.process_document(document_id, config)
+            message = 'Document processed successfully'
+        
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to process document'}), 500
+    
+    except Exception as e:
+        logger.error(f"Error processing document: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/documents/<document_id>/preview', methods=['POST'])
+def api_preview_document_processing(document_id):
+    """API to generate preview chunks for document processing"""
+    from document_analyzer import DocumentAnalyzer
+    
+    try:
+        # Extract configuration from form data (similar to api_process_document)
+        structure_type = request.form.get('structure_type', 'unstructured')
+        
+        # Get chunking configuration based on structure type
+        chunking_config = {}
+        
+        # Structured data chunking config
+        if structure_type == 'structured':
+            method = request.form.get('structured_strategy', 'row_based')
+            min_rows = request.form.get('min_rows_per_chunk', 1)
+            max_rows = request.form.get('max_rows_per_chunk', 10)
+            
+            chunking_config = {
+                'method': method,
+                'min_rows_per_chunk': int(min_rows),
+                'max_rows_per_chunk': int(max_rows)
+            }
+            
+        # Semi-structured data chunking config
+        elif structure_type == 'semi_structured':
+            method = request.form.get('semi_structured_strategy', 'semantic_elements')
+            element_path = request.form.get('element_path', '')
+            preserve_hierarchy = request.form.get('preserve_hierarchy') == 'on'
+            
+            chunking_config = {
+                'method': method,
+                'element_path': element_path,
+                'preserve_hierarchy': preserve_hierarchy
+            }
+            
+        # Unstructured data chunking config
+        else:
+            method = request.form.get('unstructured_strategy', 'paragraph_based')
+            chunk_size = request.form.get('chunk_size', 1000)
+            chunk_overlap = request.form.get('chunk_overlap', 200)
+            regex_pattern = request.form.get('regex_pattern', r'\n\s*\n|\r\n\s*\r\n')
+            
+            chunking_config = {
+                'method': method,
+                'chunk_size': int(chunk_size),
+                'chunk_overlap': int(chunk_overlap),
+                'regex_pattern': regex_pattern
+            }
+        
+        # Create configuration for preview
+        config = {
+            'detected_structure': structure_type,
+            'chunking_config': {structure_type: chunking_config}
+        }
+        
+        # Generate preview chunks
+        analyzer = DocumentAnalyzer(document_processor)
+        preview_chunks = analyzer.generate_preview(document_id, config)
+        
+        return jsonify({
+            'success': True, 
+            'chunks': preview_chunks
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating preview: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/documents/<document_id>/structure', methods=['POST'])
 def api_update_document_structure(document_id):

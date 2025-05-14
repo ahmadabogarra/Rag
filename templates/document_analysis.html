@@ -1,0 +1,662 @@
+{% extends 'base.html' %}
+
+{% block title %}تحليل المستند وإعداده{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1>تحليل المستند وإعداده للبحث الدلالي</h1>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{{ url_for('index') }}">الرئيسية</a></li>
+          <li class="breadcrumb-item"><a href="{{ url_for('document_list') }}">المستندات</a></li>
+          <li class="breadcrumb-item"><a href="{{ url_for('document_view', document_id=document.id) }}">{{ document.name }}</a></li>
+          <li class="breadcrumb-item active" aria-current="page">تحليل وإعداد</li>
+        </ol>
+      </nav>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">معلومات المستند</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <dl class="row">
+            <dt class="col-sm-4">اسم المستند:</dt>
+            <dd class="col-sm-8">{{ document.name }}</dd>
+            
+            <dt class="col-sm-4">نوع المستند:</dt>
+            <dd class="col-sm-8">{{ document.mime_type }}</dd>
+            
+            <dt class="col-sm-4">حجم المحتوى:</dt>
+            <dd class="col-sm-8">{{ document.content|length }} حرف</dd>
+          </dl>
+        </div>
+        <div class="col-md-6">
+          <dl class="row">
+            <dt class="col-sm-4">تاريخ الرفع:</dt>
+            <dd class="col-sm-8">{{ document.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+            
+            <dt class="col-sm-4">آخر تحديث:</dt>
+            <dd class="col-sm-8">{{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+            
+            <dt class="col-sm-4">عدد القطع:</dt>
+            <dd class="col-sm-8">{{ chunks|length }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form id="documentProcessingForm" action="{{ url_for('api_process_document', document_id=document.id) }}" method="POST">
+    <div class="row">
+      <!-- Left column: Structure and field selection -->
+      <div class="col-md-6">
+        <!-- Document Structure Detection Section -->
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">تحليل بنية المستند</h5>
+          </div>
+          <div class="card-body">
+            <div class="structure-detection mb-4">
+              <h6>النوع المكتشف للمستند:</h6>
+              
+              <div class="row mb-3">
+                <div class="col-md-4">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="structure_type" id="structured" value="structured" 
+                           {% if detected_structure == 'structured' %}checked{% endif %}>
+                    <label class="form-check-label" for="structured">
+                      <span class="badge bg-primary">ثابت البنية</span>
+                    </label>
+                    <small class="d-block text-muted">CSV، جداول، بيانات منظمة</small>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="structure_type" id="semi_structured" value="semi_structured"
+                           {% if detected_structure == 'semi_structured' %}checked{% endif %}>
+                    <label class="form-check-label" for="semi_structured">
+                      <span class="badge bg-info">شبه منظم</span>
+                    </label>
+                    <small class="d-block text-muted">JSON، XML، Markdown</small>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="structure_type" id="unstructured" value="unstructured"
+                           {% if detected_structure == 'unstructured' %}checked{% endif %}>
+                    <label class="form-check-label" for="unstructured">
+                      <span class="badge bg-warning">نص حر</span>
+                    </label>
+                    <small class="d-block text-muted">تقارير، مقالات، نصوص حرة</small>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="alert alert-info">
+                <small>
+                  <i class="fas fa-info-circle me-1"></i>
+                  <strong>معلومة:</strong> تم اكتشاف نوع البنية {{ detected_structure_name }} بدرجة ثقة {{ detection_confidence }}%.
+                  {% if structure_hint %}
+                  <br>
+                  <strong>سبب الاكتشاف:</strong> {{ structure_hint }}
+                  {% endif %}
+                </small>
+              </div>
+            </div>
+            
+            <div class="language-detection mb-4">
+              <h6>اللغة المكتشفة:</h6>
+              <div class="input-group mb-3">
+                <select class="form-select" id="language" name="language">
+                  <option value="ar" {% if detected_language == 'ar' %}selected{% endif %}>العربية</option>
+                  <option value="en" {% if detected_language == 'en' %}selected{% endif %}>الإنجليزية</option>
+                  <option value="multilingual" {% if detected_language == 'multilingual' %}selected{% endif %}>متعدد اللغات</option>
+                  <!-- Add more languages as needed -->
+                </select>
+                <button class="btn btn-outline-secondary" type="button" id="detectLanguageBtn">
+                  <i class="fas fa-sync-alt"></i> إعادة الكشف
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Field Selection Section (for structured and semi-structured) -->
+        <div id="fieldSelectionCard" class="card mb-4 {% if detected_structure == 'unstructured' %}d-none{% endif %}">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">اختيار الحقول</h5>
+          </div>
+          <div class="card-body">
+            <p class="text-muted">حدد الحقول التي ستستخدم في التضمين (embedding) والبيانات الوصفية (metadata)</p>
+            
+            <table class="table table-sm table-bordered">
+              <thead>
+                <tr>
+                  <th>الحقل</th>
+                  <th class="text-center">مصدر للتضمين</th>
+                  <th class="text-center">بيانات وصفية</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for field in detected_fields %}
+                <tr>
+                  <td>
+                    <strong>{{ field.name }}</strong>
+                    <small class="text-muted d-block">{{ field.description }}</small>
+                  </td>
+                  <td class="text-center">
+                    <div class="form-check d-flex justify-content-center">
+                      <input class="form-check-input" type="checkbox" name="embedding_fields" 
+                             value="{{ field.name }}" id="emb_{{ field.name }}"
+                             {% if field.name in embedding_fields %}checked{% endif %}>
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <div class="form-check d-flex justify-content-center">
+                      <input class="form-check-input" type="checkbox" name="metadata_fields" 
+                             value="{{ field.name }}" id="meta_{{ field.name }}"
+                             {% if field.name in metadata_fields %}checked{% endif %}>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="store_full_content" id="storeFullContent" 
+                     {% if store_full_content %}checked{% endif %}>
+              <label class="form-check-label" for="storeFullContent">
+                تخزين المحتوى الكامل في البيانات الوصفية
+              </label>
+              <small class="form-text text-muted d-block">
+                يمكّن هذا الخيار من استرجاع المستند الكامل عند البحث، لكنه قد يزيد من حجم البيانات المخزنة.
+              </small>
+            </div>
+            
+            <!-- Add custom metadata -->
+            <div class="mb-3">
+              <label class="form-label">إضافة بيانات وصفية مخصصة:</label>
+              <div id="customMetadataContainer">
+                {% for key, value in custom_metadata.items() %}
+                <div class="input-group mb-2 custom-metadata-row">
+                  <input type="text" class="form-control" name="custom_meta_key[]" placeholder="المفتاح" value="{{ key }}">
+                  <input type="text" class="form-control" name="custom_meta_value[]" placeholder="القيمة" value="{{ value }}">
+                  <button class="btn btn-outline-danger remove-meta-btn" type="button">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                {% endfor %}
+                <div class="input-group mb-2 custom-metadata-row">
+                  <input type="text" class="form-control" name="custom_meta_key[]" placeholder="المفتاح">
+                  <input type="text" class="form-control" name="custom_meta_value[]" placeholder="القيمة">
+                  <button class="btn btn-outline-danger remove-meta-btn" type="button">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="addCustomMetadataBtn">
+                <i class="fas fa-plus"></i> إضافة حقل جديد
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Right column: Chunking configuration and embedding -->
+      <div class="col-md-6">
+        <!-- Chunking Configuration Section -->
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">استراتيجية التقسيم (Chunking)</h5>
+          </div>
+          <div class="card-body">
+            <div class="chunking-strategy">
+              <!-- Structured data chunking options -->
+              <div id="structuredChunkingOptions" class="chunking-option {% if detected_structure != 'structured' %}d-none{% endif %}">
+                <p>للبيانات ثابتة البنية، يستخدم النظام التقسيم التالي:</p>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="radio" name="structured_strategy" id="rowBased" value="row_based"
+                         {% if chunking_config.structured.method == 'row_based' %}checked{% endif %}>
+                  <label class="form-check-label" for="rowBased">
+                    <strong>تقسيم على مستوى السجل</strong>
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    كل سجل (صف) يعامل كوحدة مستقلة مع الاحتفاظ بالرأس.
+                  </small>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="radio" name="structured_strategy" id="multiRow" value="multi_row"
+                         {% if chunking_config.structured.method == 'multi_row' %}checked{% endif %}>
+                  <label class="form-check-label" for="multiRow">
+                    <strong>دمج السجلات الصغيرة</strong>
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    يدمج عدة سجلات صغيرة في وحدة واحدة إذا كان حجمها أقل من الحد الأدنى.
+                  </small>
+                </div>
+                
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label for="minRowsPerChunk" class="form-label">الحد الأدنى للسجلات:</label>
+                    <input type="number" class="form-control" id="minRowsPerChunk" name="min_rows_per_chunk" 
+                           value="{{ chunking_config.structured.min_rows_per_chunk }}" min="1" max="50">
+                  </div>
+                  <div class="col-md-6">
+                    <label for="maxRowsPerChunk" class="form-label">الحد الأقصى للسجلات:</label>
+                    <input type="number" class="form-control" id="maxRowsPerChunk" name="max_rows_per_chunk" 
+                           value="{{ chunking_config.structured.max_rows_per_chunk }}" min="1" max="100">
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Semi-structured data chunking options -->
+              <div id="semiStructuredChunkingOptions" class="chunking-option {% if detected_structure != 'semi_structured' %}d-none{% endif %}">
+                <p>للبيانات شبه المنظمة، يمكنك اختيار استراتيجية التقسيم:</p>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="radio" name="semi_structured_strategy" id="semanticElements" value="semantic_elements"
+                         {% if chunking_config.semi_structured.method == 'semantic_elements' %}checked{% endif %}>
+                  <label class="form-check-label" for="semanticElements">
+                    <strong>تقسيم حسب العناصر الدلالية</strong>
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    يقسم بناءً على العناصر المنطقية (مثل عناصر JSON أو XML) بشكل تلقائي.
+                  </small>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="radio" name="semi_structured_strategy" id="customPath" value="custom_path"
+                         {% if chunking_config.semi_structured.method == 'custom_path' %}checked{% endif %}>
+                  <label class="form-check-label" for="customPath">
+                    <strong>تقسيم حسب مسار مخصص</strong>
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    استخدام JSONPath أو XPath لتحديد العناصر المراد تقسيمها.
+                  </small>
+                </div>
+                
+                <div class="mb-3" id="customPathInput" {% if chunking_config.semi_structured.method != 'custom_path' %}style="display: none;"{% endif %}>
+                  <label for="elementPath" class="form-label">المسار المخصص:</label>
+                  <input type="text" class="form-control" id="elementPath" name="element_path" 
+                         value="{{ chunking_config.semi_structured.element_path }}" 
+                         placeholder="مثال: $.items[*] أو //article">
+                  <small class="form-text text-muted">
+                    استخدم صيغة JSONPath للـ JSON (مثل: $.items[*]) أو XPath للـ XML/HTML.
+                  </small>
+                </div>
+                
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" name="preserve_hierarchy" id="preserveHierarchy"
+                         {% if chunking_config.semi_structured.preserve_hierarchy %}checked{% endif %}>
+                  <label class="form-check-label" for="preserveHierarchy">
+                    الحفاظ على التسلسل الهرمي
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    يحتفظ بمعلومات المسار الكامل في البيانات الوصفية لكل قطعة.
+                  </small>
+                </div>
+              </div>
+              
+              <!-- Unstructured data chunking options -->
+              <div id="unstructuredChunkingOptions" class="chunking-option {% if detected_structure != 'unstructured' %}d-none{% endif %}">
+                <p>للنصوص الحرة، يمكنك اختيار طريقة التقسيم:</p>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="radio" name="unstructured_strategy" id="fixedSize" value="fixed_size"
+                         {% if chunking_config.unstructured.method == 'fixed_size' %}checked{% endif %}>
+                  <label class="form-check-label" for="fixedSize">
+                    <strong>تقسيم بحجم ثابت</strong>
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    تقسيم النص إلى قطع متساوية الحجم تقريبًا مع تداخل بينها.
+                  </small>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="radio" name="unstructured_strategy" id="sentenceBased" value="sentence_based"
+                        {% if chunking_config.unstructured.method == 'sentence_based' %}checked{% endif %}>
+                  <label class="form-check-label" for="sentenceBased">
+                    <strong>تقسيم على مستوى الجمل</strong>
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    يحترم حدود الجمل، مع دمج الجمل القصيرة.
+                  </small>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="radio" name="unstructured_strategy" id="paragraphBased" value="paragraph_based"
+                         {% if chunking_config.unstructured.method == 'paragraph_based' %}checked{% endif %}>
+                  <label class="form-check-label" for="paragraphBased">
+                    <strong>تقسيم على مستوى الفقرات</strong>
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    يعتبر الفقرات (الأسطر الفارغة كفواصل) وحدات منطقية، مع دمج الفقرات الصغيرة.
+                  </small>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="radio" name="unstructured_strategy" id="regexBased" value="regex_based"
+                         {% if chunking_config.unstructured.method == 'regex_based' %}checked{% endif %}>
+                  <label class="form-check-label" for="regexBased">
+                    <strong>تقسيم بتعبير نمطي (Regex)</strong>
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    استخدام تعبير نمطي مخصص لتحديد الفواصل.
+                  </small>
+                </div>
+                
+                <div class="mb-3" id="regexPatternInput" {% if chunking_config.unstructured.method != 'regex_based' %}style="display: none;"{% endif %}>
+                  <label for="regexPattern" class="form-label">التعبير النمطي:</label>
+                  <input type="text" class="form-control" id="regexPattern" name="regex_pattern" 
+                         value="{{ chunking_config.unstructured.regex_pattern }}" 
+                         placeholder="مثال: \n\s*\n|\r\n\s*\r\n">
+                  <small class="form-text text-muted">
+                    نمط regex لاستخدامه كفاصل. للفقرات، جرب: <code>\n\s*\n|\r\n\s*\r\n</code><br>
+                    للعناوين: <code>^#{1,6}\s.+$</code>
+                  </small>
+                </div>
+                
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label for="chunkSize" class="form-label">حجم القطعة (حروف):</label>
+                    <input type="number" class="form-control" id="chunkSize" name="chunk_size" 
+                           value="{{ chunking_config.unstructured.chunk_size }}" min="100" max="10000">
+                  </div>
+                  <div class="col-md-6">
+                    <label for="chunkOverlap" class="form-label">تداخل القطع:</label>
+                    <input type="number" class="form-control" id="chunkOverlap" name="chunk_overlap" 
+                           value="{{ chunking_config.unstructured.chunk_overlap }}" min="0" max="1000">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Embedding Model Section -->
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">نموذج التضمين (Embedding Model)</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="embeddingModel" class="form-label">اختيار النموذج:</label>
+              <select class="form-select" id="embeddingModel" name="embedding_model">
+                {% for model in available_models %}
+                <option value="{{ model.id }}" 
+                        {% if model.id == selected_model_id %}selected{% endif %}
+                        data-dimensions="{{ model.dimension }}">
+                  {{ model.name }} ({{ model.dimension }} أبعاد)
+                </option>
+                {% endfor %}
+              </select>
+              <small class="form-text text-muted">
+                تم اقتراح النموذج بناءً على اللغة المكتشفة ونوع المحتوى.
+              </small>
+            </div>
+            
+            <div class="mb-3">
+              <a class="btn btn-sm btn-outline-secondary mb-2" data-bs-toggle="collapse" href="#advancedEmbeddingSettings" role="button">
+                إعدادات التضمين المتقدمة <i class="fas fa-chevron-down ms-1"></i>
+              </a>
+              <div class="collapse" id="advancedEmbeddingSettings">
+                <div class="card card-body bg-light">
+                  <div class="row mb-3">
+                    <div class="col-md-6">
+                      <label for="embeddingDtype" class="form-label">نوع البيانات:</label>
+                      <select class="form-select" id="embeddingDtype" name="embedding_dtype">
+                        <option value="float32" {% if embedding_config.dtype == 'float32' %}selected{% endif %}>float32 (دقة عالية)</option>
+                        <option value="float16" {% if embedding_config.dtype == 'float16' %}selected{% endif %}>float16 (حجم أقل)</option>
+                        <option value="int8" {% if embedding_config.dtype == 'int8' %}selected{% endif %}>int8 (مكمّم، أقل دقة)</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="embeddingNormalize" class="form-label">تطبيع المتجهات:</label>
+                      <select class="form-select" id="embeddingNormalize" name="embedding_normalize">
+                        <option value="true" {% if embedding_config.normalize %}selected{% endif %}>نعم (موصى به)</option>
+                        <option value="false" {% if not embedding_config.normalize %}selected{% endif %}>لا</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="row mb-3">
+                    <div class="col-12">
+                      <label for="maxTokensPerChunk" class="form-label">الحد الأقصى للتوكنات في القطعة:</label>
+                      <input type="number" class="form-control" id="maxTokensPerChunk" name="max_tokens_per_chunk" 
+                            value="{{ embedding_config.max_tokens_per_chunk }}" min="100" max="10000">
+                      <small class="form-text text-muted">
+                        الحد الأقصى الذي يدعمه النموذج. سيتم تقليص القطع التي تتجاوزه.
+                      </small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Chunking Preview Section -->
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">معاينة تقسيم المستند</h5>
+        <button type="button" class="btn btn-sm btn-light" id="refreshPreviewBtn">
+          <i class="fas fa-sync-alt me-1"></i> تحديث المعاينة
+        </button>
+      </div>
+      <div class="card-body" id="previewContainer">
+        <div class="text-center p-4" id="previewLoading">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">جاري التحميل...</span>
+          </div>
+          <p class="mt-2">جاري معالجة المستند وتقسيمه...</p>
+        </div>
+        <div id="previewContent" style="display: none;">
+          <p>الطريقة ستؤدي إلى تقسيم المستند إلى <span id="chunkCount" class="fw-bold">{{ preview_chunks|length }}</span> قطعة:</p>
+          
+          <div class="preview-chunks">
+            {% for chunk in preview_chunks %}
+            <div class="card mb-2 preview-chunk">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <small>قطعة رقم {{ chunk.index + 1 }}</small>
+                <span class="badge bg-secondary">{{ chunk.length }} حرف</span>
+              </div>
+              <div class="card-body">
+                <pre class="mb-0"><code>{{ chunk.content[:200] }}{% if chunk.content|length > 200 %}...{% endif %}</code></pre>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="d-flex justify-content-between mb-5">
+      <a href="{{ url_for('document_view', document_id=document.id) }}" class="btn btn-secondary">
+        <i class="fas fa-times me-1"></i> إلغاء
+      </a>
+      <div>
+        <button type="button" class="btn btn-info me-2" id="saveConfigBtn">
+          <i class="fas fa-save me-1"></i> حفظ الإعدادات فقط
+        </button>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-cogs me-1"></i> معالجة المستند وإنشاء التضمينات
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Show/hide chunking options based on structure type
+  const structureTypeRadios = document.querySelectorAll('input[name="structure_type"]');
+  const structuredOptions = document.getElementById('structuredChunkingOptions');
+  const semiStructuredOptions = document.getElementById('semiStructuredChunkingOptions');
+  const unstructuredOptions = document.getElementById('unstructuredChunkingOptions');
+  const fieldSelectionCard = document.getElementById('fieldSelectionCard');
+
+  // Function to update visibility of chunking options
+  function updateChunkingOptions() {
+    const selectedStructure = document.querySelector('input[name="structure_type"]:checked').value;
+    
+    // Update chunking options visibility
+    structuredOptions.classList.toggle('d-none', selectedStructure !== 'structured');
+    semiStructuredOptions.classList.toggle('d-none', selectedStructure !== 'semi_structured');
+    unstructuredOptions.classList.toggle('d-none', selectedStructure !== 'unstructured');
+    
+    // Update field selection visibility
+    fieldSelectionCard.classList.toggle('d-none', selectedStructure === 'unstructured');
+  }
+
+  // Add event listeners to structure type radios
+  structureTypeRadios.forEach(radio => {
+    radio.addEventListener('change', updateChunkingOptions);
+  });
+
+  // Toggle regex pattern input based on unstructured strategy selection
+  const unstructuredStrategyRadios = document.querySelectorAll('input[name="unstructured_strategy"]');
+  const regexPatternInput = document.getElementById('regexPatternInput');
+
+  unstructuredStrategyRadios.forEach(radio => {
+    radio.addEventListener('change', function() {
+      regexPatternInput.style.display = this.value === 'regex_based' ? 'block' : 'none';
+    });
+  });
+
+  // Toggle custom path input for semi-structured data
+  const semiStructuredStrategyRadios = document.querySelectorAll('input[name="semi_structured_strategy"]');
+  const customPathInput = document.getElementById('customPathInput');
+
+  semiStructuredStrategyRadios.forEach(radio => {
+    radio.addEventListener('change', function() {
+      customPathInput.style.display = this.value === 'custom_path' ? 'block' : 'none';
+    });
+  });
+
+  // Add/remove custom metadata fields
+  const customMetadataContainer = document.getElementById('customMetadataContainer');
+  const addCustomMetadataBtn = document.getElementById('addCustomMetadataBtn');
+
+  addCustomMetadataBtn.addEventListener('click', function() {
+    const newRow = document.createElement('div');
+    newRow.className = 'input-group mb-2 custom-metadata-row';
+    newRow.innerHTML = `
+      <input type="text" class="form-control" name="custom_meta_key[]" placeholder="المفتاح">
+      <input type="text" class="form-control" name="custom_meta_value[]" placeholder="القيمة">
+      <button class="btn btn-outline-danger remove-meta-btn" type="button">
+        <i class="fas fa-times"></i>
+      </button>
+    `;
+    customMetadataContainer.appendChild(newRow);
+    
+    // Add event listener to the new remove button
+    newRow.querySelector('.remove-meta-btn').addEventListener('click', function() {
+      this.closest('.custom-metadata-row').remove();
+    });
+  });
+
+  // Add event listeners to existing remove buttons
+  document.querySelectorAll('.remove-meta-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      this.closest('.custom-metadata-row').remove();
+    });
+  });
+
+  // Preview generation
+  const refreshPreviewBtn = document.getElementById('refreshPreviewBtn');
+  const previewLoading = document.getElementById('previewLoading');
+  const previewContent = document.getElementById('previewContent');
+
+  refreshPreviewBtn.addEventListener('click', function() {
+    // Show loading
+    previewLoading.style.display = 'block';
+    previewContent.style.display = 'none';
+    
+    // Collect form data
+    const formData = new FormData(document.getElementById('documentProcessingForm'));
+    
+    // Send preview request
+    fetch('{{ url_for("api_preview_document_processing", document_id=document.id) }}', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Update chunk count
+        document.getElementById('chunkCount').textContent = data.chunks.length;
+        
+        // Update preview content
+        const previewChunks = document.querySelector('.preview-chunks');
+        previewChunks.innerHTML = '';
+        
+        data.chunks.forEach((chunk, index) => {
+          const chunkElement = document.createElement('div');
+          chunkElement.className = 'card mb-2 preview-chunk';
+          chunkElement.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <small>قطعة رقم ${index + 1}</small>
+              <span class="badge bg-secondary">${chunk.content.length} حرف</span>
+            </div>
+            <div class="card-body">
+              <pre class="mb-0"><code>${chunk.content.substring(0, 200)}${chunk.content.length > 200 ? '...' : ''}</code></pre>
+            </div>
+          `;
+          previewChunks.appendChild(chunkElement);
+        });
+        
+        // Show content
+        previewLoading.style.display = 'none';
+        previewContent.style.display = 'block';
+      } else {
+        alert('حدث خطأ أثناء معالجة المعاينة: ' + (data.error || 'خطأ غير معروف'));
+        previewLoading.style.display = 'none';
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('حدث خطأ أثناء معالجة المعاينة');
+      previewLoading.style.display = 'none';
+    });
+  });
+  
+  // Save configuration without processing
+  const saveConfigBtn = document.getElementById('saveConfigBtn');
+  
+  saveConfigBtn.addEventListener('click', function() {
+    // Collect form data
+    const formData = new FormData(document.getElementById('documentProcessingForm'));
+    formData.append('save_only', 'true');
+    
+    // Send request
+    fetch('{{ url_for("api_process_document", document_id=document.id) }}', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('تم حفظ الإعدادات بنجاح!');
+      } else {
+        alert('حدث خطأ أثناء حفظ الإعدادات: ' + (data.error || 'خطأ غير معروف'));
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('حدث خطأ أثناء حفظ الإعدادات');
+    });
+  });
+
+  // Show preview content if it exists
+  if (document.querySelectorAll('.preview-chunk').length > 0) {
+    previewLoading.style.display = 'none';
+    previewContent.style.display = 'block';
+  }
+});
+</script>
+{% endblock %}

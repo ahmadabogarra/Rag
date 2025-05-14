@@ -209,6 +209,15 @@ wheels = [
 ]
 
 [[package]]
+name = "langdetect"
+version = "1.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/72/a3add0e4eec4eb9e2569554f7c70f4a3c27712f40e3284d483e88094cc0e/langdetect-1.0.9.tar.gz", hash = "sha256:cbc1fef89f8d062739774bd51eda3da3274006b3661d199c2655f6b3f6d605a0", size = 981474 }
+
+[[package]]
 name = "lxml"
 version = "5.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -534,6 +543,7 @@ dependencies = [
     { name = "flask" },
     { name = "flask-sqlalchemy" },
     { name = "gunicorn" },
+    { name = "langdetect" },
     { name = "lxml" },
     { name = "numpy" },
     { name = "openpyxl" },
@@ -551,6 +561,7 @@ requires-dist = [
     { name = "flask", specifier = ">=3.1.1" },
     { name = "flask-sqlalchemy", specifier = ">=3.1.1" },
     { name = "gunicorn", specifier = ">=23.0.0" },
+    { name = "langdetect", specifier = ">=1.0.9" },
     { name = "lxml", specifier = ">=5.4.0" },
     { name = "numpy", specifier = ">=2.2.5" },
     { name = "openpyxl", specifier = ">=3.1.5" },
