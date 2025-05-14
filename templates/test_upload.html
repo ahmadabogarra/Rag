@@ -153,6 +153,48 @@
     <div class="col-12">
       <div class="card">
         <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">رسومات التحميل المتحركة</h5>
+        </div>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-md-3">
+              <h6>تقليب الصفحات</h6>
+              <div id="flip-animation" class="loading-container" data-animation-type="document-flip"></div>
+              <button class="btn btn-sm btn-outline-info mt-2" onclick="toggleAnimation('flip-animation', 'document-flip')">
+                إظهار/إخفاء
+              </button>
+            </div>
+            <div class="col-md-3">
+              <h6>ترتيب المستندات</h6>
+              <div id="shuffle-animation" class="loading-container" data-animation-type="document-shuffle"></div>
+              <button class="btn btn-sm btn-outline-info mt-2" onclick="toggleAnimation('shuffle-animation', 'document-shuffle')">
+                إظهار/إخفاء
+              </button>
+            </div>
+            <div class="col-md-3">
+              <h6>البحث في المستندات</h6>
+              <div id="search-animation" class="loading-container" data-animation-type="document-search"></div>
+              <button class="btn btn-sm btn-outline-info mt-2" onclick="toggleAnimation('search-animation', 'document-search')">
+                إظهار/إخفاء
+              </button>
+            </div>
+            <div class="col-md-3">
+              <h6>دائرة التحميل</h6>
+              <div id="spinner-animation" class="loading-container" data-animation-type="loading-spinner"></div>
+              <button class="btn btn-sm btn-outline-info mt-2" onclick="toggleAnimation('spinner-animation', 'loading-spinner')">
+                إظهار/إخفاء
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
           <h5 class="mb-0">نتائج آخر 10 عمليات تحميل</h5>
         </div>
         <div class="card-body">
