@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+
+{% block title %}اختبار تحميل المستندات{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1>اختبار تحميل وتحليل المستندات</h1>
+      <p class="lead">استخدم هذه الصفحة لاختبار تحميل وتحليل أنواع مختلفة من المستندات</p>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">تحميل مستند جديد</h5>
+        </div>
+        <div class="card-body">
+          <form id="uploadForm" action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+              <label for="document" class="form-label">اختر ملفًا للتحميل</label>
+              <input type="file" class="form-control" id="document" name="document" required>
+            </div>
+            <div class="mb-3">
+              <label for="documentName" class="form-label">اسم المستند (اختياري)</label>
+              <input type="text" class="form-control" id="documentName" name="name" placeholder="سيتم استخدام اسم الملف إذا تركت هذا الحقل فارغًا">
+            </div>
+            <div class="mb-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="analyzeImmediately" name="analyze_immediately" checked>
+                <label class="form-check-label" for="analyzeImmediately">
+                  تحليل المستند فورًا بعد التحميل
+                </label>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-upload me-1"></i> تحميل المستند
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">ملفات اختبار</h5>
+        </div>
+        <div class="card-body">
+          <p>يمكنك استخدام هذه الملفات النموذجية للاختبار:</p>
+          <ul class="list-group">
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>CSV (بيانات منظمة)</span>
+              <a href="{{ url_for('static', filename='sample_data/sample.csv') }}" class="btn btn-sm btn-outline-primary" download>تنزيل</a>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>JSON (بيانات شبه منظمة)</span>
+              <a href="{{ url_for('static', filename='sample_data/sample.json') }}" class="btn btn-sm btn-outline-primary" download>تنزيل</a>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>XML (بيانات شبه منظمة)</span>
+              <a href="{{ url_for('static', filename='sample_data/sample.xml') }}" class="btn btn-sm btn-outline-primary" download>تنزيل</a>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>Markdown (بيانات شبه منظمة)</span>
+              <a href="{{ url_for('static', filename='sample_data/sample.md') }}" class="btn btn-sm btn-outline-primary" download>تنزيل</a>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>Text (بيانات غير منظمة)</span>
+              <a href="{{ url_for('static', filename='sample_data/sample.txt') }}" class="btn btn-sm btn-outline-primary" download>تنزيل</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">إحصائيات المستندات</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h6>توزيع أنواع المستندات</h6>
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>نوع البنية</th>
+                      <th>عدد المستندات</th>
+                      <th>النسبة المئوية</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>بيانات منظمة</td>
+                      <td>{{ stats.structured }}</td>
+                      <td>{{ stats.structured_percent }}%</td>
+                    </tr>
+                    <tr>
+                      <td>بيانات شبه منظمة</td>
+                      <td>{{ stats.semi_structured }}</td>
+                      <td>{{ stats.semi_structured_percent }}%</td>
+                    </tr>
+                    <tr>
+                      <td>بيانات غير منظمة</td>
+                      <td>{{ stats.unstructured }}</td>
+                      <td>{{ stats.unstructured_percent }}%</td>
+                    </tr>
+                    <tr class="table-info">
+                      <td><strong>المجموع</strong></td>
+                      <td><strong>{{ stats.total }}</strong></td>
+                      <td><strong>100%</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <h6>توزيع اللغات</h6>
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>اللغة</th>
+                      <th>عدد المستندات</th>
+                      <th>النسبة المئوية</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for lang, count in language_stats.items() %}
+                    <tr>
+                      <td>{{ lang_names.get(lang, lang) }}</td>
+                      <td>{{ count }}</td>
+                      <td>{{ (count / stats.total * 100)|round(1) if stats.total > 0 else 0 }}%</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">نتائج آخر 10 عمليات تحميل</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>اسم المستند</th>
+                  <th>نوع البنية</th>
+                  <th>نسبة الثقة</th>
+                  <th>اللغة</th>
+                  <th>عدد القطع</th>
+                  <th>تاريخ التحميل</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for doc in recent_documents %}
+                <tr>
+                  <td><a href="{{ url_for('document_view', document_id=doc.id) }}">{{ doc.name }}</a></td>
+                  <td>
+                    {% if doc.structure_type == 'structured' %}
+                      <span class="badge bg-primary">بيانات منظمة</span>
+                    {% elif doc.structure_type == 'semi_structured' %}
+                      <span class="badge bg-info">بيانات شبه منظمة</span>
+                    {% else %}
+                      <span class="badge bg-warning">بيانات غير منظمة</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ doc.confidence }}%</td>
+                  <td>{{ lang_names.get(doc.language, doc.language) }}</td>
+                  <td>{{ doc.chunk_count }}</td>
+                  <td>{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <a href="{{ url_for('document_view', document_id=doc.id) }}" class="btn btn-outline-primary">عرض</a>
+                      <a href="{{ url_for('document_analysis_page', document_id=doc.id) }}" class="btn btn-outline-info">تحليل</a>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

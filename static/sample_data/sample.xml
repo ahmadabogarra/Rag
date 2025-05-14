@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog>
+  <store id="SA12345">
+    <name>متجر الإلكترونيات الحديثة</name>
+    <location>الرياض، المملكة العربية السعودية</location>
+    <website>https://example.com</website>
+  </store>
+  
+  <products>
+    <product id="1">
+      <title>iPhone 13</title>
+      <description>هاتف ذكي من آبل بشاشة 6.1 بوصة</description>
+      <category>الإلكترونيات</category>
+      <price currency="SAR">999.99</price>
+      <specifications>
+        <processor>A15 Bionic</processor>
+        <ram>4GB</ram>
+        <storage>128GB</storage>
+        <camera>12MP</camera>
+      </specifications>
+      <inStock>true</inStock>
+    </product>
+    
+    <product id="2">
+      <title>سامسونج تلفزيون سمارت 55 بوصة</title>
+      <description>تلفزيون ذكي بدقة 4K ودعم HDR</description>
+      <category>الإلكترونيات</category>
+      <price currency="SAR">799.50</price>
+      <specifications>
+        <resolution>4K Ultra HD</resolution>
+        <refreshRate>120Hz</refreshRate>
+        <smartFeatures>
+          <feature>Netflix</feature>
+          <feature>YouTube</feature>
+          <feature>Amazon Prime</feature>
+        </smartFeatures>
+        <connectivity>
+          <port>HDMI</port>
+          <port>USB</port>
+          <wireless>Bluetooth</wireless>
+          <wireless>WiFi</wireless>
+        </connectivity>
+      </specifications>
+      <inStock>true</inStock>
+    </product>
+    
+    <product id="3">
+      <title>لوح شوكولاتة بالحليب</title>
+      <description>شوكولاتة بالحليب عالية الجودة 100 جرام</description>
+      <category>الأطعمة</category>
+      <price currency="SAR">2.99</price>
+      <nutritionalInfo>
+        <calories>550</calories>
+        <sugar>45g</sugar>
+        <fat>30g</fat>
+        <protein>7g</protein>
+      </nutritionalInfo>
+      <inStock>true</inStock>
+    </product>
+    
+    <product id="4">
+      <title>كتاب البرمجة بلغة بايثون</title>
+      <description>دليل المبتدئين لتعلم البرمجة بلغة بايثون</description>
+      <category>الكتب</category>
+      <price currency="SAR">34.95</price>
+      <author>أحمد محمد</author>
+      <publisher>دار النشر العربية</publisher>
+      <pages>450</pages>
+      <inStock>false</inStock>
+    </product>
+    
+    <product id="5">
+      <title>حقيبة ظهر رياضية</title>
+      <description>حقيبة ظهر متينة للرياضة والتنزه</description>
+      <category>الملابس والإكسسوارات</category>
+      <price currency="SAR">59.00</price>
+      <features>
+        <feature>مقاومة للماء</feature>
+        <feature>سعة كبيرة</feature>
+        <feature>خفيفة الوزن</feature>
+      </features>
+      <colors>
+        <color>أسود</color>
+        <color>أزرق</color>
+        <color>أحمر</color>
+      </colors>
+      <inStock>true</inStock>
+    </product>
+  </products>
+  
+  <metadata>
+    <lastUpdated>2025-05-01T14:30:00Z</lastUpdated>
+    <currency>SAR</currency>
+    <version>1.0.3</version>
+  </metadata>
+</catalog>

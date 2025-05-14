@@ -1,0 +1,73 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "title": "iPhone 13",
+      "description": "هاتف ذكي من آبل بشاشة 6.1 بوصة",
+      "category": "الإلكترونيات",
+      "price": 999.99,
+      "specifications": {
+        "processor": "A15 Bionic",
+        "ram": "4GB",
+        "storage": "128GB",
+        "camera": "12MP"
+      },
+      "inStock": true
+    },
+    {
+      "id": 2,
+      "title": "سامسونج تلفزيون سمارت 55 بوصة",
+      "description": "تلفزيون ذكي بدقة 4K ودعم HDR",
+      "category": "الإلكترونيات",
+      "price": 799.50,
+      "specifications": {
+        "resolution": "4K Ultra HD",
+        "refreshRate": "120Hz",
+        "smartFeatures": ["Netflix", "YouTube", "Amazon Prime"],
+        "connectivity": ["HDMI", "USB", "Bluetooth", "WiFi"]
+      },
+      "inStock": true
+    },
+    {
+      "id": 3,
+      "title": "لوح شوكولاتة بالحليب",
+      "description": "شوكولاتة بالحليب عالية الجودة 100 جرام",
+      "category": "الأطعمة",
+      "price": 2.99,
+      "nutritionalInfo": {
+        "calories": 550,
+        "sugar": "45g",
+        "fat": "30g",
+        "protein": "7g"
+      },
+      "inStock": true
+    },
+    {
+      "id": 4,
+      "title": "كتاب البرمجة بلغة بايثون",
+      "description": "دليل المبتدئين لتعلم البرمجة بلغة بايثون",
+      "category": "الكتب",
+      "price": 34.95,
+      "author": "أحمد محمد",
+      "publisher": "دار النشر العربية",
+      "pages": 450,
+      "inStock": false
+    },
+    {
+      "id": 5,
+      "title": "حقيبة ظهر رياضية",
+      "description": "حقيبة ظهر متينة للرياضة والتنزه",
+      "category": "الملابس والإكسسوارات",
+      "price": 59.00,
+      "features": ["مقاومة للماء", "سعة كبيرة", "خفيفة الوزن"],
+      "colors": ["أسود", "أزرق", "أحمر"],
+      "inStock": true
+    }
+  ],
+  "metadata": {
+    "storeId": "SA12345",
+    "lastUpdated": "2025-05-01T14:30:00Z",
+    "currency": "SAR",
+    "version": "1.0.3"
+  }
+}
