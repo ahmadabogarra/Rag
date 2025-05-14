@@ -371,15 +371,56 @@ class DocumentAnalyzer:
         fields = []
         seen_fields = set()  # لتتبع الحقول التي تم رصدها مسبقاً
 
-        def add_field(name: str, description: str, sample: str) -> None:
+        def add_field(name: str, description: str, sample: str, field_type: str = 'basic') -> None:
             """إضافة حقل جديد مع التأكد من عدم تكراره"""
             if name not in seen_fields:
                 seen_fields.add(name)
+                sample_str = sample[:100] if isinstance(sample, str) else str(sample)[:100]
                 fields.append({
                     'name': name,
                     'description': description,
-                    'sample': sample[:100] if isinstance(sample, str) else str(sample)[:100]
+                    'sample': sample_str,
+                    'type': field_type
                 })
+
+        def extract_json_fields(data: Any, parent_path: str = '') -> None:
+            """استخراج الحقول من كائن JSON متداخل مع دعم المسارات"""
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    current_path = f"{parent_path}.{key}" if parent_path else key
+                    
+                    if isinstance(value, dict):
+                        add_field(
+                            name=current_path,
+                            description=f'كائن JSON: {current_path}',
+                            sample=json.dumps(value, ensure_ascii=False),
+                            field_type='object'
+                        )
+                        extract_json_fields(value, current_path)
+                    
+                    elif isinstance(value, list):
+                        if value and isinstance(value[0], dict):
+                            add_field(
+                                name=f"{current_path}[]",
+                                description=f'مصفوفة كائنات: {current_path}',
+                                sample=f"[{len(value)} items]",
+                                field_type='array'
+                            )
+                            extract_json_fields(value[0], f"{current_path}[]")
+                        else:
+                            add_field(
+                                name=current_path,
+                                description=f'مصفوفة قيم: {current_path}',
+                                sample=str(value[:2]) + "..." if len(value) > 2 else str(value),
+                                field_type='array'
+                            )
+                    else:
+                        add_field(
+                            name=current_path,
+                            description=f'حقل JSON: {current_path}',
+                            sample=str(value),
+                            field_type='value'
+                        )
 
         # تحليل المستندات المنظمة (مثل CSV)
         if structure_type == 'structured':
@@ -424,49 +465,24 @@ class DocumentAnalyzer:
             if content.startswith('{') or content.startswith('['):  # JSON
                 try:
                     data = json.loads(content)
-                    
-                    def extract_fields(obj, prefix=''):
-                        """استخراج الحقول من كائن JSON متداخل"""
-                        if isinstance(obj, dict):
-                            for key, value in obj.items():
-                                field_name = f"{prefix}{key}" if prefix else key
-                                
-                                # معالجة القيم المتداخلة
-                                if isinstance(value, dict):
-                                    # إضافة الحقل الرئيسي
-                                    add_field(
-                                        name=field_name,
-                                        description=f'كائن JSON: {field_name}',
-                                        sample=json.dumps(value, ensure_ascii=False)[:100] + "..."
-                                    )
-                                    # استخراج الحقول الفرعية
-                                    new_prefix = f"{field_name}."
-                                    extract_fields(value, new_prefix)
-                                elif isinstance(value, list):
-                                    # إضافة الحقل كمصفوفة
-                                    sample = str(value[:2]) + "..." if len(value) > 2 else str(value)
-                                    add_field(
-                                        name=field_name,
-                                        description=f'مصفوفة JSON: {field_name}',
-                                        sample=sample
-                                    )
-                                    # إذا كانت المصفوفة تحتوي على كائنات، استخرج حقولها
-                                    if value and isinstance(value[0], dict):
-                                        extract_fields(value[0], f"{field_name}[].")
-                                else:
-                                    add_field(
-                                        name=field_name,
-                                        description=f'حقل JSON: {field_name}',
-                                        sample=str(value)
-                                    )
-                    
                     if isinstance(data, dict):
-                        extract_fields(data)
+                        extract_json_fields(data)
                     elif isinstance(data, list) and data:
-                        # استخدم العنصر الأول كنموذج
-                        first_item = data[0]
-                        if isinstance(first_item, dict):
-                            extract_fields(first_item)
+                        if isinstance(data[0], dict):
+                            add_field(
+                                name='root',
+                                description='مصفوفة من الكائنات',
+                                sample=f"[{len(data)} items]",
+                                field_type='array'
+                            )
+                            extract_json_fields(data[0], 'items')
+                        else:
+                            add_field(
+                                name='root',
+                                description='مصفوفة من القيم',
+                                sample=str(data[:2]) + "..." if len(data) > 2 else str(data),
+                                field_type='array'
+                            )
                 except Exception as e:
                     logger.warning(f"Error parsing JSON: {str(e)}")
                     add_field(
