@@ -33,11 +33,22 @@ class DocumentAnalyzer:
             except:
                 fields = []
         
+        # Extract custom metadata from existing metadata
+        custom_metadata = {}
+        for key, value in metadata.items():
+            if not key.startswith('detected_') and key not in ['store_full_content', 'chunking_config', 'embedding_config']:
+                custom_metadata[key] = value
+
         return {
             'document': document,
             'metadata': metadata,
             'fields': fields,
-            'structure_type': structure_type
+            'structure_type': structure_type,
+            'custom_metadata': custom_metadata,
+            'store_full_content': metadata.get('store_full_content', 'false') == 'true',
+            'detected_structure_name': metadata.get('detected_structure', 'unstructured'),
+            'detection_confidence': float(metadata.get('detection_confidence', '0.0')),
+            'detected_language': metadata.get('detected_language', 'ar')
         }
 
     def _extract_json_fields(self, data: Any, parent_path: str = '') -> List[Dict[str, str]]:
