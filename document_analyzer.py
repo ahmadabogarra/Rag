@@ -424,24 +424,30 @@ class DocumentAnalyzer:
             if content.startswith('{') or content.startswith('['):  # JSON
                 try:
                     data = json.loads(content)
-                    if isinstance(data, dict):
-                        for key, value in data.items():
-                            sample = str(value)
-                            add_field(
-                                name=key,
-                                description=f'حقل JSON: {key}',
-                                sample=sample
-                            )
-                    elif isinstance(data, list) and data:
-                        first_item = data[0]
-                        if isinstance(first_item, dict):
-                            for key, value in first_item.items():
-                                sample = str(value)
+                    
+                    def extract_fields(obj, prefix=''):
+                        """استخراج الحقول من كائن JSON متداخل"""
+                        if isinstance(obj, dict):
+                            for key, value in obj.items():
+                                field_name = f"{prefix}{key}" if prefix else key
+                                # تجاهل الحقول المتداخلة إذا كانت قيمها معقدة جداً
+                                if isinstance(value, (dict, list)) and len(str(value)) > 100:
+                                    sample = str(value)[:100] + "..."
+                                else:
+                                    sample = str(value)
                                 add_field(
-                                    name=key,
-                                    description=f'حقل JSON Array: {key}',
+                                    name=field_name,
+                                    description=f'حقل JSON: {field_name}',
                                     sample=sample
                                 )
+                    
+                    if isinstance(data, dict):
+                        extract_fields(data)
+                    elif isinstance(data, list) and data:
+                        # استخدم العنصر الأول كنموذج
+                        first_item = data[0]
+                        if isinstance(first_item, dict):
+                            extract_fields(first_item)
                 except Exception as e:
                     logger.warning(f"Error parsing JSON: {str(e)}")
                     add_field(
