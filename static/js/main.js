@@ -2,7 +2,14 @@
  * Main JavaScript file for Document Management System
  */
 
+// Initialize loading animations
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize loading containers
+    const loadingContainers = document.querySelectorAll('.loading-container');
+    loadingContainers.forEach(container => {
+        container.style.display = 'none';
+    });
+
     // Initialize Bootstrap tooltips
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -67,4 +74,17 @@ document.addEventListener('DOMContentLoaded', function() {
             bsAlert.close();
         }, 5000);
     };
+});
+
+// Toggle animation function
+function toggleAnimation(containerId, show) {
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.style.display = show ? 'flex' : 'none';
+    }
+}
+
+// Global error handler
+window.addEventListener('error', function(event) {
+    console.error('Error:', event.error);
 });
